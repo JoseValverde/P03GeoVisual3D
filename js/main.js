@@ -7,12 +7,32 @@ import * as THREE from './lib/three.module.js';
 import { OrbitControls } from './lib/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from './lib/examples/jsm/loaders/GLTFLoader.js';
 import { SVGLoader } from './lib/examples/jsm/loaders/SVGLoader.js';
+import { GUI } from './lib/dat.gui.module.js';
 import Utils from './utils.js';
 
 // Variables globales
 let scene, camera, renderer;
 let controls;
 let objects = [];
+let axesHelper, centerMarker, svgAxesHelper; // Helpers para visualización
+let gui; // Panel de control
+
+// Parámetros para controlar desde la GUI
+const params = {
+    centerX: 0,
+    centerY: 0,
+    centerZ: 0,
+    showHelpers: true,
+    showAxes: true,
+    showCenterMarker: true,
+    resetCenter: function() {
+        centerController.resetCenter();
+        this.centerX = 0;
+        this.centerY = 0;
+        this.centerZ = 0;
+        updateGUI();
+    }
+};
 
 // Inicializar la aplicación cuando el documento esté listo
 window.addEventListener('load', init);
@@ -24,7 +44,7 @@ window.addEventListener('resize', onWindowResize);
 function init() {
     // Crear escena
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x111111);
+    scene.background = new THREE.Color(0xbfbdb7);
     
     // Crear cámara
     const aspectRatio = window.innerWidth / window.innerHeight;
@@ -53,39 +73,20 @@ function init() {
     
     // Iniciar el bucle de renderizado
     animate();
+    
+    // Configurar panel de control GUI
+    setupGUI();
 }
 
 /**
  * Crear objetos para la escena
  */
 function createObjects() {
-    // Ejemplo: Crear un cubo
-    const cube = Utils.createMesh('cube', { width: 1, height: 1, depth: 1 }, {
-        type: 'MeshStandardMaterial',
-        color: 0x3498db
-    });
-    cube.position.x = -1.5;
-    cube.castShadow = true;  // Habilitar que el cubo proyecte sombras
-    scene.add(cube);
-    objects.push(cube);
-    
-    // Ejemplo: Crear una esfera
-    const sphere = Utils.createMesh('sphere', { radius: 0.7 }, {
-        type: 'MeshStandardMaterial',
-        color: 0xe74c3c,
-        metalness: 0.7,
-        roughness: 0.2
-    });
-    sphere.position.x = 1.5;
-    sphere.castShadow = true;  // Habilitar que la esfera proyecte sombras
-    scene.add(sphere);
-    objects.push(sphere);
-    
     // Cargar y crear el objeto SVG (pajarita)
-    loadSVG('./pajarita001.svg'); // Corregir la ruta al archivo SVG
+    loadSVG('./pajarita001.svg');
     
     // Crear un plano como suelo
-    const floor = Utils.createMesh('cube', { width: 10, height: 0.1, depth: 10 }, {
+    const floor = Utils.createMesh('cube', { width: 100, height: 0.1, depth: 100 }, {
         type: 'MeshStandardMaterial',
         color: 0x95a5a6,
         roughness: 0.8
@@ -129,7 +130,7 @@ function loadSVG(url) {
         const width = maxX - minX;
         const height = maxY - minY;
         const centerX = (maxX + minX) / 2;
-        const centerY = (maxY + minY) / 2;
+        const centerY = ((maxY + minY) / 2); // Ajustar el centro para que esté más arriba
         
         // Escalar para que el objeto tenga un tamaño razonable en la escena
         const scale = 2.0 / Math.max(width, height);
@@ -145,7 +146,7 @@ function loadSVG(url) {
             shapes.forEach((shape) => {
                 // Crear la geometría extruida (con profundidad y bisel para mayor realismo)
                 const geometry = new THREE.ExtrudeGeometry(shape, {
-                    depth: 100,          // Profundidad moderada (reducida de 3 a 0.5)
+                    depth: 20,          // Profundidad moderada (reducida de 3 a 0.5)
                     bevelEnabled: true,   // Activar bisel para bordes suaves
                     bevelThickness: 0.03, // Grosor del bisel
                     bevelSize: 0.02,      // Tamaño del bisel
@@ -199,14 +200,37 @@ function loadSVG(url) {
         // Imprimir información sobre la geometría para depuración
         console.log("SVG agregado a la escena, posición:", svgGroup.position);
         
+        // Añadir helpers para visualizar los ejes y el centro
+        
+        // Crear y añadir ejes (rojo: X, verde: Y, azul: Z)
+        axesHelper = new THREE.AxesHelper(2); // Tamaño de 2 unidades
+        scene.add(axesHelper);
+        
+        // Crear un pequeño objeto para marcar el centro de la pajarita
+        centerMarker = new THREE.Mesh(
+            new THREE.SphereGeometry(0.05, 16, 16), // Pequeña esfera
+            new THREE.MeshBasicMaterial({color: 0xff00ff}) // Color magenta
+        );
+        centerMarker.position.copy(svgGroup.position); // Posición igual a la del SVG
+        scene.add(centerMarker);
+        
+        // Añadir ejes locales para la pajarita
+        svgAxesHelper = new THREE.AxesHelper(1); // Tamaño de 1 unidad
+        svgGroup.add(svgAxesHelper); // Añadimos al grupo para que siga sus transformaciones
+        
         // Creamos un objeto específico para la rotación del SVG
         const svgRotator = {
-            object: svgGroup,
-            rotateOnlyZ: true // Indicador para rotar solo en eje Y
+          object: svgGroup,
+          rotateX: { active: false, speed: 0.01 }, // Rotación en eje X: desactivada, velocidad 0.01
+          rotateY: { active: false, speed: 0.01 }, // Rotación en eje Y: desactivada, velocidad 0.01
+          rotateZ: { active: true, speed: -0.1 }, // Rotación en eje Z: activada, velocidad 0.01
         };
         
         // Añadir a la lista de objetos animados para rotarlo
         objects.push(svgRotator);
+        
+        // Asignar el grupo SVG al controlador de centro
+        centerController.setGroup(svgGroup);
     });
 }
 
@@ -221,19 +245,38 @@ function animate() {
     
     // Animar objetos
     Utils.animate(objects, (obj) => {
-        if (obj.rotateOnlyX) {
-          // Este objeto solo rota en el eje X
-          obj.object.rotation.x += 0.01;
-        } else if (obj.rotateOnlyY) {
-            // Este objeto solo rota en el eje Y (SVG)
-            obj.object.rotation.y += 0.01;
-        } else if (obj.rotateOnlyZ) {
-            // Este objeto solo rota en el eje z (SVG)
-            obj.object.rotation.z += -0.01;
-          } else {
-          // Objetos normales rotan en ambos ejes
-          obj.rotation.x += 0.01;
-          obj.rotation.y += 0.01;
+        // Si es un objeto con configuración específica de rotación por eje (nuevo formato con velocidad)
+        if (obj.object && (obj.hasOwnProperty('rotateX') || obj.hasOwnProperty('rotateY') || obj.hasOwnProperty('rotateZ'))) {
+            // Comprobar si las propiedades son objetos (nuevo formato) o booleanos (formato anterior)
+            
+            // Rotación en eje X
+            if (typeof obj.rotateX === 'object' && obj.rotateX !== null) {
+                // Nuevo formato: { active: bool, speed: number }
+                if (obj.rotateX.active) {
+                    obj.object.rotation.x += obj.rotateX.speed;
+                }
+            } else if (obj.rotateX === true) {
+                // Formato anterior: booleano
+                obj.object.rotation.x += 0.01;
+            }
+            
+            // Rotación en eje Y
+            if (typeof obj.rotateY === 'object' && obj.rotateY !== null) {
+                if (obj.rotateY.active) {
+                    obj.object.rotation.y += obj.rotateY.speed;
+                }
+            } else if (obj.rotateY === true) {
+                obj.object.rotation.y += 0.01;
+            }
+            
+            // Rotación en eje Z
+            if (typeof obj.rotateZ === 'object' && obj.rotateZ !== null) {
+                if (obj.rotateZ.active) {
+                    obj.object.rotation.z += obj.rotateZ.speed;
+                }
+            } else if (obj.rotateZ === true) {
+                obj.object.rotation.z += -0.01;
+            }
         }
     });
     
@@ -249,3 +292,164 @@ function onWindowResize() {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
+
+/**
+ * Controla la visibilidad de los helpers de visualización
+ * @param {boolean} showAxes - Mostrar/ocultar ejes globales
+ * @param {boolean} showCenter - Mostrar/ocultar marcador de centro
+ * @param {boolean} showSvgAxes - Mostrar/ocultar ejes locales de la pajarita
+ */
+function toggleHelpers(showAxes = true, showCenter = true, showSvgAxes = true) {
+    if (axesHelper) axesHelper.visible = showAxes;
+    if (centerMarker) centerMarker.visible = showCenter;
+    if (svgAxesHelper) svgAxesHelper.visible = showSvgAxes;
+    console.log(`Visualización de helpers - Ejes: ${showAxes}, Centro: ${showCenter}, Ejes SVG: ${showSvgAxes}`);
+}
+
+/**
+ * Ajusta el centro de la pajarita
+ * @param {Object} svgGroup - El grupo que contiene la pajarita
+ * @param {number} offsetX - Desplazamiento en el eje X
+ * @param {number} offsetY - Desplazamiento en el eje Y
+ * @param {number} offsetZ - Desplazamiento en el eje Z
+ */
+function adjustSvgCenter(svgGroup, offsetX = 0, offsetY = 0, offsetZ = 0) {
+    if (!svgGroup) {
+        console.error("No se ha encontrado el grupo SVG");
+        return;
+    }
+    
+    // Aplicar el desplazamiento a todos los hijos
+    svgGroup.children.forEach(mesh => {
+        if (mesh !== svgAxesHelper) { // No ajustar el helper de ejes
+            mesh.position.x += offsetX;
+            mesh.position.y += offsetY;
+            mesh.position.z += offsetZ;
+        }
+    });
+    
+    // Actualizar la posición del marcador del centro para reflejar el nuevo centro
+    if (centerMarker) {
+        centerMarker.position.set(
+            svgGroup.position.x, 
+            svgGroup.position.y, 
+            svgGroup.position.z
+        );
+    }
+    
+    console.log(`Centro ajustado - X: ${offsetX}, Y: ${offsetY}, Z: ${offsetZ}`);
+}
+
+// Controlador para manejar el centro de la pajarita
+const centerController = {
+    // Referencia al grupo SVG (se establecerá cuando se cargue)
+    svgGroup: null,
+    
+    // Establecer la referencia al grupo SVG
+    setGroup: function(group) {
+        this.svgGroup = group;
+        console.log("Controlador de centro configurado correctamente");
+    },
+    
+    // Mover el centro en el eje X
+    moveX: function(amount) {
+        if (!this.svgGroup) return;
+        adjustSvgCenter(this.svgGroup, amount, 0, 0);
+    },
+    
+    // Mover el centro en el eje Y
+    moveY: function(amount) {
+        if (!this.svgGroup) return;
+        adjustSvgCenter(this.svgGroup, 0, amount, 0);
+    },
+    
+    // Mover el centro en el eje Z
+    moveZ: function(amount) {
+        if (!this.svgGroup) return;
+        adjustSvgCenter(this.svgGroup, 0, 0, amount);
+    },
+    
+    // Mover el centro en los tres ejes
+    move: function(x, y, z) {
+        if (!this.svgGroup) return;
+        adjustSvgCenter(this.svgGroup, x, y, z);
+    },
+    
+    // Reiniciar el centro (calcular automáticamente)
+    resetCenter: function() {
+        if (!this.svgGroup) return;
+        
+        // Calcular el centro geométrico
+        const bbox = new THREE.Box3().setFromObject(this.svgGroup);
+        const center = bbox.getCenter(new THREE.Vector3());
+        
+        // Reiniciar las posiciones de los hijos
+        this.svgGroup.children.forEach(mesh => {
+            if (mesh !== svgAxesHelper) {
+                mesh.position.x -= center.x;
+                mesh.position.y -= center.y;
+                mesh.position.z -= center.z;
+            }
+        });
+        
+        console.log("Centro reiniciado");
+    }
+};
+
+/**
+ * Configura el panel de control GUI
+ */
+function setupGUI() {
+    gui = new GUI({ width: 300 });
+    
+    // Carpeta para controlar el centro de la figura
+    const centerFolder = gui.addFolder('Centro de la figura');
+    
+    // Controles para mover el centro en cada eje
+    centerFolder.add(params, 'centerX', -2, 2, 0.01).name('Posición X').onChange(value => {
+        const delta = value - params.centerX;
+        centerController.moveX(delta);
+    });
+    
+    centerFolder.add(params, 'centerY', -2, 2, 0.01).name('Posición Y').onChange(value => {
+        const delta = value - params.centerY;
+        centerController.moveY(delta);
+    });
+    
+    centerFolder.add(params, 'centerZ', -2, 2, 0.01).name('Posición Z').onChange(value => {
+        const delta = value - params.centerZ;
+        centerController.moveZ(delta);
+    });
+    
+    centerFolder.add(params, 'resetCenter').name('Reiniciar Centro');
+    
+    // Abrir la carpeta por defecto
+    centerFolder.open();
+    
+    // Carpeta para controlar la visualización de los helpers
+    const helpersFolder = gui.addFolder('Visualización');
+    
+    helpersFolder.add(params, 'showAxes').name('Mostrar Ejes').onChange(value => {
+        if (axesHelper) axesHelper.visible = value;
+    });
+    
+    helpersFolder.add(params, 'showCenterMarker').name('Mostrar Centro').onChange(value => {
+        if (centerMarker) centerMarker.visible = value;
+    });
+    
+    helpersFolder.open();
+}
+
+/**
+ * Actualiza los valores en la GUI
+ */
+function updateGUI() {
+    // Actualizar los controles de la GUI con los valores actuales
+    for (const controller of gui.__controllers) {
+        controller.updateDisplay();
+    }
+}
+
+// Exponer funciones para poder usarlas desde la consola
+window.toggleHelpers = toggleHelpers;
+window.centerController = centerController;

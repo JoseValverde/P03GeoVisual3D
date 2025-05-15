@@ -112,7 +112,7 @@ const Utils = {
      */
     setupBasicLights: function(scene) {
         // Luz ambiental
-        const ambientLight = new THREE.AmbientLight(0xf2efe9, 0.8);
+        const ambientLight = new THREE.AmbientLight(0xf2efe9,1.5);
         scene.add(ambientLight);
         
         // Luz direccional
