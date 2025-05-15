@@ -35,6 +35,8 @@ function init() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Sombras suavizadas
+    renderer.outputColorSpace = THREE.SRGBColorSpace; // Mejor representación de colores
     document.getElementById('container').appendChild(renderer.domElement);
     
     // Añadir controles de órbita
@@ -62,6 +64,7 @@ function createObjects() {
         color: 0x3498db
     });
     cube.position.x = -1.5;
+    cube.castShadow = true;  // Habilitar que el cubo proyecte sombras
     scene.add(cube);
     objects.push(cube);
     
@@ -73,6 +76,7 @@ function createObjects() {
         roughness: 0.2
     });
     sphere.position.x = 1.5;
+    sphere.castShadow = true;  // Habilitar que la esfera proyecte sombras
     scene.add(sphere);
     objects.push(sphere);
     
