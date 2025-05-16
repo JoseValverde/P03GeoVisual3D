@@ -1,18 +1,19 @@
 /**
  * Script principal para la visualización 3D con Four.js
- * Muestra cuatro pajaritas con rotaciones en Z de 0°, 90°, 180° y 270°
- * usando un pivot específico (X: -1.025, Y: 0.301, Z: 0)
- * Las pajaritas rotan automáticamente alrededor de su punto pivot
+ * Muestra seis pajaritas con rotaciones uniformemente distribuidas en un círculo (0°, 60°, 120°, 180°, 240°, 300°)
+ * usando un pivot específico (X: 0.502, Y: -0.3451, Z: 0)
+ * Las pajaritas no rotan automáticamente por defecto, pero pueden activarse con la tecla R
  * 
  * Elementos visuales:
- * - Cruceta ROJA: Indica el centro geométrico (0,0,0) de cada pajarita
- * - Cruceta AZUL: Indica el punto de pivot (-1.025, 0.301, 0) alrededor del cual rota la pajarita
- * - Línea VERDE: Conecta el centro con el pivot para visualizar la relación entre ambos puntos
- * - Pajarita VERDE: La pajarita en posición 0° es de color verde (#7D8A2E)
- * - Pajarita DORADA: Las pajaritas en posiciones 90°, 180° y 270° son de color dorado (#AA8A50)
+ * - Cruceta ROJA: Indica el centro geométrico (0,0,0) de cada pajarita (oculta por defecto)
+ * - Cruceta AZUL: Indica el punto de pivot (0.502, -0.3451, 0) alrededor del cual rota la pajarita (oculta por defecto)
+ * - Línea VERDE: Conecta el centro con el pivot para visualizar la relación entre ambos puntos (oculta por defecto)
+ * - Pajarita VERDE: Las pajaritas en posiciones pares (0°, 120°, 240°) son de color verde (#7D8A2E)
+ * - Pajarita DORADA: Las pajaritas en posiciones impares (60°, 180°, 300°) son de color dorado (#AA8A50)
  * 
  * Controles:
- * - Tecla R: Detiene/reinicia la rotación y vuelve a las posiciones iniciales
+ * - Tecla R: Activa/detiene la rotación y vuelve a las posiciones iniciales
+ * - Tecla A: Oculta/muestra las marcas (crucetas) que indican los centros y puntos de pivot
  */
 
 // Importar los módulos de Three.js
@@ -26,9 +27,13 @@ let scene, camera, renderer;
 let controls;
 let objects = [];
 let originalRotations = []; // Almacenar rotaciones iniciales
-let pivotX = 1.025; // Coordenada X del pivot
-let pivotY = -0.7;  // Coordenada Y del pivot
+let pivotX = 0.502; // Coordenada X del pivot
+let pivotY = -0.3451; // Coordenada Y del pivot
 let pivotZ = 0;      // Coordenada Z del pivot
+let markersVisible = false; // Estado de visibilidad de las marcas (inicialmente ocultas)
+let centerMarkers = []; // Array para almacenar los marcadores de centro
+let pivotMarkers = []; // Array para almacenar los marcadores de pivot
+let connectionLines = []; // Array para almacenar las líneas de conexión
 
 // Inicializar la aplicación cuando el documento esté listo
 window.addEventListener('load', init);
@@ -78,11 +83,14 @@ function init() {
  * Crear objetos para la escena
  */
 function createObjects() {
-    // Crear cuatro pajaritas con rotaciones consecutivas de 90° en el eje Z
-    loadSVG('./pajarita001.svg', 0);
-    loadSVG('./pajarita001.svg', Math.PI/2);  // 90 grados
-    loadSVG('./pajarita001.svg', Math.PI);    // 180 grados
-    loadSVG('./pajarita001.svg', 3*Math.PI/2); // 270 grados
+    // Crear seis pajaritas uniformemente distribuidas en un círculo (60° entre cada una)
+    const numPajaritas = 6;
+    const angleStep = (2 * Math.PI) / numPajaritas; // 60° en radianes
+    
+    for (let i = 0; i < numPajaritas; i++) {
+        const angle = i * angleStep; // 0, 60°, 120°, 180°, 240°, 300°
+        loadSVG('./pajarita001.svg', angle, numPajaritas);
+    }
     
     // Crear un plano como suelo
     const floor = Utils.createMesh('cube', { width: 1000, height: 0.1, depth: 1000 }, {
@@ -99,10 +107,12 @@ function createObjects() {
  * Carga un archivo SVG y lo convierte en una forma 3D
  * @param {string} url - Ruta al archivo SVG
  * @param {number} rotationZ - Rotación en radianes alrededor del eje Z
- * @description La pajarita de 0 grados (la primera) tiene color verde acento (#7D8A2E), 
- * las demás pajaritas tienen color dorado (#AA8A50)
+ * @param {number} numPajaritas - Número total de pajaritas (para cálculos de posición)
+ * @description Las pajaritas en posiciones pares (0°, 120°, 240°) tienen color verde acento (#7D8A2E), 
+ * las pajaritas en posiciones impares (60°, 180°, 300°) tienen color dorado (#AA8A50). Cada pajarita está ubicada en una
+ * posición angular uniforme alrededor de un círculo, separadas por 60° (6 pajaritas).
  */
-function loadSVG(url, rotationZ = 0) {
+function loadSVG(url, rotationZ = 0, numPajaritas = 6) {
     const svgLoader = new SVGLoader();
     
     console.log(`Intentando cargar SVG desde: ${url} con rotación Z: ${rotationZ} radianes`);
@@ -135,7 +145,7 @@ function loadSVG(url, rotationZ = 0) {
         const centerY = ((maxY + minY) / 2); // Ajustar el centro para que esté más arriba
         
         // Escalar para que el objeto tenga un tamaño razonable en la escena
-        const scale = 2.0 / Math.max(width, height);
+        const scale = 1 / Math.max(width, height);
         
         paths.forEach((path) => {
             const fillColor = path.color; // Color del relleno en el SVG
@@ -148,22 +158,25 @@ function loadSVG(url, rotationZ = 0) {
             shapes.forEach((shape) => {
                 // Crear la geometría extruida (con profundidad y bisel para mayor realismo)
                 const geometry = new THREE.ExtrudeGeometry(shape, {
-                    depth: 80,          // Profundidad moderada
-                    bevelEnabled: true,   // Activar bisel para bordes suaves
-                    bevelThickness: 0.03, // Grosor del bisel
-                    bevelSize: 0.5,      // Tamaño del bisel
-                    bevelOffset: 0,       // Sin desplazamiento
-                    bevelSegments: 30      // Más segmentos para un bisel más suave
+                  depth: 60, // Profundidad moderada
+                  bevelEnabled: true, // Activar bisel para bordes suaves
+                  steps: 4,
+                  bevelThickness: 10,
+                  bevelSize: 4,
+                  bevelOffset: 1,
+                  bevelSegments: 3,
                 });
                 
         // Crear un material para la malla con aspecto más metálico y sombras muy suaves
-                // La pajarita de 0 grados tendrá el color verde acento, las demás dorado
-                const materialColor = rotationZ === 0 ? 0x7D8A2E : 0xaa8a50; 
+                // Las pajaritas en posiciones pares (índices 0, 2, 4) tendrán color verde acento
+                // Las pajaritas en posiciones impares (índices 1, 3, 5) tendrán color dorado
+                const angleInDegrees = (rotationZ * 180) / Math.PI;
+                const positionIndex = Math.round(angleInDegrees / 60) % numPajaritas;
+                const isEvenPosition = positionIndex % 2 === 0;
+                const materialColor = isEvenPosition ? 0x7D8A2E : 0xaa8a50;
                 
-                // Mostrar en consola el color de la pajarita según su rotación
-                if (rotationZ === 0) {
-                    console.log("Aplicando color verde acento (#7D8A2E) a la pajarita de 0 grados");
-                }
+                // Mostrar en consola el color de la pajarita según su posición
+                console.log(`Pajarita en posición ${positionIndex} (${angleInDegrees.toFixed(1)}°): Color ${isEvenPosition ? 'verde acento (#7D8A2E)' : 'dorado (#AA8A50)'}`)
                 
                 const material = new THREE.MeshStandardMaterial({
                   color: materialColor,  // Color según la rotación
@@ -211,14 +224,16 @@ function loadSVG(url, rotationZ = 0) {
         
         // Crear un marcador (cruceta roja) para visualizar el centro de la pajarita
         const centerMarker = createCenterMarker();
+        centerMarker.visible = markersVisible; // Aplicar visibilidad inicial
         svgGroup.add(centerMarker);
+        centerMarkers.push(centerMarker); // Almacenar referencia al marcador del centro
         
-        // Establecer el pivot de rotación especificado (X: -1.025, Y: 0.301, Z: 0)
+        // Establecer el pivot de rotación especificado (X: 0.502, Y: -0.3451, Z: 0)
         // Estas coordenadas son relativas al centro local (0,0,0) de cada figura
         // El centro local corresponde a la mitad del ancho y alto de la figura
         // Usamos las variables globales para el pivot (ya definidas al inicio)
-        // const pivotX = -1.025; 
-        // const pivotY = 0.301;
+        // const pivotX = 0.502; 
+        // const pivotY = -0.3451;
         // const pivotZ = 0;
         
         // Creamos un grupo adicional que servirá como punto de pivote
@@ -233,7 +248,9 @@ function loadSVG(url, rotationZ = 0) {
         
         // Crear una línea que conecte el centro con el pivot para visualizar la relación
         const connectionLine = createConnectionLine();
+        connectionLine.visible = markersVisible; // Aplicar visibilidad inicial
         svgGroup.add(connectionLine);
+        connectionLines.push(connectionLine); // Almacenar referencia a la línea de conexión
         
         // Aplicar la rotación en el eje Z según el parámetro
         pivotGroup.rotation.z = rotationZ;
@@ -244,19 +261,21 @@ function loadSVG(url, rotationZ = 0) {
         // Posicionar el marcador en el origen del grupo pivot (0,0,0)
         // ya que este punto representa ahora el eje de rotación
         pivotMarker.position.set(0, 0, 0);
+        pivotMarker.visible = markersVisible; // Aplicar visibilidad inicial
         
         // Añadir el marcador al grupo pivot para que se mantenga en el punto de rotación
         pivotGroup.add(pivotMarker);
+        pivotMarkers.push(pivotMarker); // Almacenar referencia al marcador del pivot
         
         console.log(`SVG agregado a la escena, posición: (${svgGroup.position.x.toFixed(3)}, ${svgGroup.position.y.toFixed(3)}, ${svgGroup.position.z.toFixed(3)}), rotación Z: ${rotationZ.toFixed(3)}`);
         console.log(`Pivot posicionado en: (${pivotX}, ${pivotY}, ${pivotZ}) respecto al centro de la pajarita`);
         
-        // Creamos un objeto específico con rotación automática en Z
+        // Creamos un objeto específico con rotación automática en Z (inicialmente desactivada)
         const svgRotator = {
           object: pivotGroup,   // Importante: rotamos el grupo pivot, no el svgGroup
           rotateX: { active: false, speed: 0 },
           rotateY: { active: false, speed: 0 },
-          rotateZ: { active: true, speed: 0.01 }, // Activamos la rotación en Z
+          rotateZ: { active: false, speed: 0.01 }, // Rotación en Z inicialmente desactivada
           initialRotationZ: rotationZ // Guardamos la rotación inicial
         };
         
@@ -326,9 +345,9 @@ function onWindowResize() {
  * @param {KeyboardEvent} event - El evento de pulsación de tecla
  */
 function handleKeyDown(event) {
-    // Tecla 'r' o 'R' para detener la rotación y restablecer posiciones
+    // Tecla 'r' o 'R' para activar/detener la rotación y restablecer posiciones
     if (event.key === 'r' || event.key === 'R') {
-        // Detener/reiniciar rotación para todos los objetos
+        // Alternar rotación para todos los objetos
         objects.forEach(obj => {
             // Alternar el estado de rotación
             if (obj.rotateZ && obj.rotateZ.active) {
@@ -348,27 +367,51 @@ function handleKeyDown(event) {
         
         console.log("Rotación " + (objects[0]?.rotateZ?.active ? "activada" : "desactivada") + " y posiciones restablecidas");
     }
+    
+    // Tecla 'a' o 'A' para ocultar/mostrar las marcas
+    if (event.key === 'a' || event.key === 'A') {
+        // Cambiar el estado de visibilidad
+        markersVisible = !markersVisible;
+        
+        // Aplicar visibilidad a los marcadores de centro
+        centerMarkers.forEach(marker => {
+            marker.visible = markersVisible;
+        });
+        
+        // Aplicar visibilidad a los marcadores de pivot
+        pivotMarkers.forEach(marker => {
+            marker.visible = markersVisible;
+        });
+        
+        // Aplicar visibilidad a las líneas de conexión
+        connectionLines.forEach(line => {
+            line.visible = markersVisible;
+        });
+        
+        console.log("Marcadores " + (markersVisible ? "visibles" : "ocultos"));
+    }
 }
 
 /**
  * Crea un marcador en forma de cruceta para visualizar el pivot
  * @returns {THREE.Object3D} - Objeto 3D que representa el marcador
- * @description Este marcador visualiza el punto exacto del pivot local (X: -1.025, Y: 0.301, Z: 0)
+ * @description Este marcador visualiza el punto exacto del pivot local (X: 0.502, Y: -0.3451, Z: 0)
  * alrededor del cual giran las pajaritas. El origen (0,0,0) del marcador
  * corresponde al pivot y es visible como una cruceta azul.
+ * La visibilidad de estos marcadores puede alternarse con la tecla 'A'.
  */
 function createPivotMarker() {
     // Crear un grupo para contener las líneas de la cruceta
     const markerGroup = new THREE.Group();
     
     // Tamaño de la cruceta
-    const size = 0.25;
+    const size = 0.05;
     
     // Material para las líneas de la cruceta (azul brillante)
     const material = new THREE.MeshBasicMaterial({ 
         color: 0x0088ff,
         transparent: true,
-        opacity: 0.8
+        opacity: 0.2
     });
     
     // Crear líneas en las tres direcciones (X, Y, Z)
@@ -398,6 +441,9 @@ function createPivotMarker() {
 /**
  * Crea una línea que conecta el centro de la pajarita con el punto de pivot
  * @returns {THREE.Object3D} - Objeto 3D que representa la línea de conexión
+ * @description Esta línea verde conecta el centro (0,0,0) con el punto de pivot
+ * para visualizar la relación entre ambos puntos. La visibilidad de estas líneas
+ * puede alternarse con la tecla 'A'.
  */
 function createConnectionLine() {
     // Crear puntos para la línea
@@ -431,6 +477,7 @@ function createConnectionLine() {
  * @returns {THREE.Object3D} - Objeto 3D que representa el marcador
  * @description Este marcador rojo visualiza el centro geométrico (0,0,0) de cada pajarita,
  * que corresponde al punto central después de centrar la geometría.
+ * La visibilidad de estos marcadores puede alternarse con la tecla 'A'.
  */
 function createCenterMarker() {
     // Crear un grupo para contener las líneas de la cruceta
