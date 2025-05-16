@@ -36,6 +36,15 @@ const params = {
     rotationActive: true, // Controlar la rotación
     resetCenter: function() {
         centerController.resetCenter();
+    },
+    resetRotation: function() {
+        // Función para reiniciar los valores de rotación
+        objects.forEach(obj => {
+            if (obj.object && obj.object.rotation) {
+                obj.object.rotation.set(0, 0, 0);
+                console.log("Rotación reiniciada a (0, 0, 0)");
+            }
+        });
     }
 };
 
@@ -101,7 +110,7 @@ function init() {
     centerTextInfo.style.minWidth = '300px';
     centerTextInfo.innerHTML = `
         <strong>Centro actual:</strong> X: 0.000, Y: 0.000, Z: 0.000<br>
-        <strong>Ajuste desde (0,0,0):</strong> ΔX: 0.000, ΔY: 0.000, ΔZ: 0.000
+        <strong>Posición del pivot:</strong> X: 0.000, Y: 0.000, Z: 0.000
     `;
     document.getElementById('container').appendChild(centerTextInfo);
     
@@ -265,12 +274,6 @@ function loadSVG(url) {
         
         console.log("Centro geométrico original del SVG:", center);
         
-        // Guardamos las coordenadas originales del centro
-        // El centro original es (0,0,0) ya que vamos a mover la geometría para que quede centrada
-        originalCenter.x = 0;
-        originalCenter.y = 0;
-        originalCenter.z = 0;
-        
         // Movemos la geometría para que el centro quede en el origen 
         // (esto hace que la rotación sea alrededor del centro del objeto)
         svgGroup.children.forEach(mesh => {
@@ -278,6 +281,12 @@ function loadSVG(url) {
             mesh.position.y -= center.y;
             mesh.position.z -= center.z;
         });
+        
+        // Después de centrar la geometría, el centro geométrico ahora está en (0,0,0)
+        // Por lo tanto, establecemos originalCenter a (0,0,0)
+        originalCenter.x = 0;
+        originalCenter.y = 0;
+        originalCenter.z = 0;
         
         // Posicionar el grupo en la escena - centrado en el origen para mejor control
         svgGroup.position.set(0, 0, 0);
@@ -403,11 +412,11 @@ function toggleHelpers(showAxes = true, showCenter = true, showSvgAxes = true) {
 }
 
 /**
- * Ajusta el centro de la pajarita estableciendo valores absolutos
+ * Ajusta el pivot de rotación de la pajarita estableciendo valores absolutos
  * @param {Object} svgGroup - El grupo que contiene la pajarita
- * @param {number} x - Posición X del centro
- * @param {number} y - Posición Y del centro
- * @param {number} z - Posición Z del centro
+ * @param {number} x - Posición X del pivot
+ * @param {number} y - Posición Y del pivot
+ * @param {number} z - Posición Z del pivot
  */
 function setCenterPosition(svgGroup, x = 0, y = 0, z = 0) {
     if (!svgGroup) {
@@ -476,6 +485,7 @@ const centerController = {
     // Establecer el centro en una posición absoluta
     setCenter: function(x, y, z) {
         if (!this.svgGroup) return;
+        console.log("setCenter recibiendo valores:", { x, y, z });
         setCenterPosition(this.svgGroup, x, y, z);
     },
     
@@ -505,16 +515,11 @@ const centerController = {
         
         // Guardar las posiciones actuales de los objetos y del grupo
         const currentGroupPosition = this.svgGroup.position.clone();
-        const currentChildPositions = [];
         
-        this.svgGroup.children.forEach(child => {
-            if (child !== svgAxesHelper) {
-                currentChildPositions.push({
-                    object: child,
-                    position: child.position.clone()
-                });
-            }
-        });
+        // Calcular el centro geométrico actual de la figura
+        const bbox = new THREE.Box3().setFromObject(this.svgGroup);
+        const geometricCenter = bbox.getCenter(new THREE.Vector3());
+        console.log("Centro geométrico actual:", geometricCenter);
         
         // Restablecer el centro a la posición (0,0,0)
         this.setCenter(0, 0, 0);
@@ -524,8 +529,8 @@ const centerController = {
             centerMarker.position.copy(this.svgGroup.position);
         }
         
-        // Asegurarse de actualizar el texto informativo
-        updateCenterInfoText();
+        // No es necesario llamar explícitamente a updateCenterInfoText() aquí
+        // ya que setCenter ya llama a updateGUI() que a su vez llama a updateCenterInfoText()
         
         console.log("Centro reiniciado con éxito. Nueva posición del grupo SVG:", this.svgGroup.position);
     }
@@ -538,23 +543,10 @@ function setupGUI() {
     gui = new GUI({ width: 300 });
     
     // Carpeta para controlar el centro de la figura
-    const centerFolder = gui.addFolder('Centro de la figura');
+    const centerFolder = gui.addFolder('Modificación de pivot de rotación');
     
-    // Panel de información para mostrar los valores actuales
-    const infoFolder = gui.addFolder('Coordenadas actuales');
-    
-    // Crear campos de solo lectura para mostrar los valores
-    const infoX = infoFolder.add({infoX: params.centerX.toFixed(3)}, 'infoX').name('X:').listen();
-    infoX.__input.readOnly = true;
-    
-    const infoY = infoFolder.add({infoY: params.centerY.toFixed(3)}, 'infoY').name('Y:').listen();
-    infoY.__input.readOnly = true;
-    
-    const infoZ = infoFolder.add({infoZ: params.centerZ.toFixed(3)}, 'infoZ').name('Z:').listen();
-    infoZ.__input.readOnly = true;
-    
-    // Panel para mostrar la diferencia con las coordenadas originales
-    const deltaFolder = gui.addFolder('Ajuste desde centro (0,0,0)');
+    // Panel para mostrar la posición dentro de la figura
+    const deltaFolder = gui.addFolder('Posición dentro de la figura');
     
     // Crear campos de solo lectura para mostrar las diferencias
     const deltaX = deltaFolder.add({deltaX: '0.000'}, 'deltaX').name('ΔX:').listen();
@@ -568,24 +560,40 @@ function setupGUI() {
     
     // Función para actualizar los valores mostrados
     const updateInfoDisplays = function() {
-        // Actualizar coordenadas actuales
-        infoX.object.infoX = params.centerX.toFixed(3);
-        infoY.object.infoY = params.centerY.toFixed(3);
-        infoZ.object.infoZ = params.centerZ.toFixed(3);
+        if (!centerController.svgGroup) return;
         
-        // Calcular y actualizar diferencias
-        const diffX = params.centerX - originalCenter.x;
-        const diffY = params.centerY - originalCenter.y;
-        const diffZ = params.centerZ - originalCenter.z;
+        // Calcular el centro geométrico actual de la figura
+        const bbox = new THREE.Box3().setFromObject(centerController.svgGroup);
+        const geometricCenter = bbox.getCenter(new THREE.Vector3());
         
-        deltaX.object.deltaX = diffX.toFixed(3);
-        deltaY.object.deltaY = diffY.toFixed(3);
-        deltaZ.object.deltaZ = diffZ.toFixed(3);
+        // Calcular la posición del pivot relativa al centro geométrico de la figura
+        // Tenemos que considerar la posición del grupo y los parámetros del centro
+        const worldPivot = new THREE.Vector3(
+            centerController.svgGroup.position.x + params.centerX,
+            centerController.svgGroup.position.y + params.centerY,
+            centerController.svgGroup.position.z + params.centerZ
+        );
+        
+        // Calcular la posición relativa del pivot respecto al centro geométrico
+        const posRelX = worldPivot.x - geometricCenter.x;
+        const posRelY = worldPivot.y - geometricCenter.y;
+        const posRelZ = worldPivot.z - geometricCenter.z;
+        
+        deltaX.object.deltaX = posRelX.toFixed(3);
+        deltaY.object.deltaY = posRelY.toFixed(3);
+        deltaZ.object.deltaZ = posRelZ.toFixed(3);
+        
+        console.log("updateInfoDisplays - Valores actualizados:", {
+            centerX: params.centerX,
+            centerY: params.centerY,
+            centerZ: params.centerZ,
+            posRelX: posRelX,
+            posRelY: posRelY,
+            posRelZ: posRelZ,
+            geometricCenter: geometricCenter
+        });
         
         // Forzar la actualización de la GUI
-        infoX.updateDisplay();
-        infoY.updateDisplay();
-        infoZ.updateDisplay();
         deltaX.updateDisplay();
         deltaY.updateDisplay();
         deltaZ.updateDisplay();
@@ -598,31 +606,30 @@ function setupGUI() {
         updateInfoDisplays();
     };
     
-    // Abrir la carpeta de información por defecto
-    infoFolder.open();
+    // Abrir la carpeta por defecto
     deltaFolder.open();
     
     // Controles para mover el centro en cada eje
-    const controllerX = centerFolder.add(params, 'centerX', -0.3, 0.3, 0.01).name('Posición X');
+    const controllerX = centerFolder.add(params, 'centerX', -0.3, 0.3, 0.01).name('Pivot X');
     controllerX.onChange(value => {
         centerController.setCenterX(value);
     });
     
     const controllerY = centerFolder
       .add(params, "centerY", -0.3, 0.3, 0.01)
-      .name("Posición Y");
+      .name("Pivot Y");
     controllerY.onChange(value => {
         centerController.setCenterY(value);
     });
     
     const controllerZ = centerFolder
       .add(params, "centerZ", -0.3, 0.3, 0.01)
-      .name("Posición Z");
+      .name("Pivot Z");
     controllerZ.onChange(value => {
         centerController.setCenterZ(value);
     });
     
-    centerFolder.add(params, 'resetCenter').name('Reiniciar Centro');
+    centerFolder.add(params, 'resetCenter').name('Reiniciar Pivot');
     
     // Abrir la carpeta por defecto
     centerFolder.open();
@@ -642,9 +649,13 @@ function setupGUI() {
     
     // Botón para activar/desactivar la rotación
     helpersFolder.add(params, 'rotationActive').name('Rotación Activa').onChange(value => {
-        console.log(`Rotación ${value ? 'activada' : 'desactivada'}`);
+        updateRotationStatus();
     });
     
+    // Botón para reiniciar la rotación
+    helpersFolder.add(params, 'resetRotation').name('Reiniciar Rotación');
+    
+    // Abrir la carpeta por defecto
     helpersFolder.open();
 }
 
@@ -652,6 +663,12 @@ function setupGUI() {
  * Actualiza los valores en la GUI
  */
 function updateGUI() {
+    console.log("updateGUI llamado con valores:", {
+        centerX: params.centerX,
+        centerY: params.centerY,
+        centerZ: params.centerZ
+    });
+    
     // Actualizar los controles de la GUI con los valores actuales
     if (gui) {
         for (let folder in gui.__folders) {
@@ -670,18 +687,39 @@ function updateGUI() {
  * Actualiza el texto informativo con las coordenadas actuales del centro
  */
 function updateCenterInfoText() {
-    if (centerTextInfo) {
-        // Calcular la diferencia entre las coordenadas actuales y las originales (0,0,0)
-        // Como originalCenter ya está en (0,0,0), simplemente mostrar los valores actuales como delta
-        const deltaX = params.centerX;
-        const deltaY = params.centerY; 
-        const deltaZ = params.centerZ;
+    if (centerTextInfo && centerController.svgGroup) {
+        // Calcular el centro geométrico actual de la figura
+        const bbox = new THREE.Box3().setFromObject(centerController.svgGroup);
+        const geometricCenter = bbox.getCenter(new THREE.Vector3());
         
-        // Mostrar tanto las coordenadas actuales como la diferencia con las originales
+        // Calcular la posición del pivot relativa al centro geométrico de la figura
+        // Tenemos que considerar la posición del grupo y los parámetros del centro
+        const worldPivot = new THREE.Vector3(
+            centerController.svgGroup.position.x + params.centerX,
+            centerController.svgGroup.position.y + params.centerY,
+            centerController.svgGroup.position.z + params.centerZ
+        );
+        
+        // Calcular la posición relativa del pivot respecto al centro geométrico
+        const posRelX = worldPivot.x - geometricCenter.x;
+        const posRelY = worldPivot.y - geometricCenter.y;
+        const posRelZ = worldPivot.z - geometricCenter.z;
+        
+        // Mostrar tanto las coordenadas absolutas como la posición relativa al centro geométrico
         centerTextInfo.innerHTML = `
             <strong>Centro actual:</strong> X: ${params.centerX.toFixed(3)}, Y: ${params.centerY.toFixed(3)}, Z: ${params.centerZ.toFixed(3)}<br>
-            <strong>Ajuste desde (0,0,0):</strong> ΔX: ${deltaX.toFixed(3)}, ΔY: ${deltaY.toFixed(3)}, ΔZ: ${deltaZ.toFixed(3)}
+            <strong>Posición del pivot:</strong> X: ${posRelX.toFixed(3)}, Y: ${posRelY.toFixed(3)}, Z: ${posRelZ.toFixed(3)}
         `;
+        
+        console.log("updateCenterInfoText - Valores actualizados:", {
+            centerX: params.centerX,
+            centerY: params.centerY,
+            centerZ: params.centerZ,
+            posRelX: posRelX,
+            posRelY: posRelY,
+            posRelZ: posRelZ,
+            geometricCenter: geometricCenter
+        });
     }
 }
 
@@ -709,3 +747,33 @@ window.toggleRotation = function() {
     }
     return params.rotationActive;
 };
+
+// Función para reiniciar la rotación de todos los objetos
+function resetRotation() {
+    objects.forEach(obj => {
+        if (obj.object && obj.object.rotation) {
+            obj.object.rotation.set(0, 0, 0);
+            console.log("Rotación reiniciada a (0, 0, 0)");
+        }
+    });
+    // También reiniciar la rotación del grupo SVG si existe
+    if (centerController.svgGroup) {
+        centerController.svgGroup.rotation.set(0, 0, 0);
+        console.log("Rotación del grupo SVG reiniciada a (0, 0, 0)");
+    }
+}
+
+// Actualizar el estado de la rotación en la GUI y reiniciar si es necesario
+function updateRotationStatus() {
+    // Si la rotación está desactivada, reiniciar la rotación
+    if (!params.rotationActive) {
+        resetRotation();
+    }
+    
+    // Actualizar la visualización del botón de rotación
+    const button = document.getElementById('rotationToggle');
+    if (button) {
+        button.textContent = params.rotationActive ? 'Pausar Rotación' : 'Activar Rotación';
+        button.style.backgroundColor = params.rotationActive ? '#4CAF50' : '#f44336';
+    }
+}
