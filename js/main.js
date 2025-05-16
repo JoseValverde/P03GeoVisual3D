@@ -235,12 +235,12 @@ function loadSVG(url) {
             shapes.forEach((shape) => {
                 // Crear la geometría extruida (con profundidad y bisel para mayor realismo)
                 const geometry = new THREE.ExtrudeGeometry(shape, {
-                    depth: 20,          // Profundidad moderada (reducida de 3 a 0.5)
+                    depth: 60,          // Profundidad moderada (reducida de 3 a 0.5)
                     bevelEnabled: true,   // Activar bisel para bordes suaves
                     bevelThickness: 0.03, // Grosor del bisel
-                    bevelSize: 0.02,      // Tamaño del bisel
+                    bevelSize: 0.5,      // Tamaño del bisel
                     bevelOffset: 0,       // Sin desplazamiento
-                    bevelSegments: 10      // Más segmentos para un bisel más suave
+                    bevelSegments: 30      // Más segmentos para un bisel más suave
                 });
                 
                 // Crear un material para la malla con aspecto más metálico
@@ -610,20 +610,20 @@ function setupGUI() {
     deltaFolder.open();
     
     // Controles para mover el centro en cada eje
-    const controllerX = centerFolder.add(params, 'centerX', -0.3, 0.3, 0.01).name('Pivot X');
+    const controllerX = centerFolder.add(params, 'centerX', -1, 1, 0.001).name('Pivot X');
     controllerX.onChange(value => {
         centerController.setCenterX(value);
     });
     
     const controllerY = centerFolder
-      .add(params, "centerY", -0.3, 0.3, 0.01)
+      .add(params, "centerY", -1, 1, 0.001)
       .name("Pivot Y");
     controllerY.onChange(value => {
         centerController.setCenterY(value);
     });
     
     const controllerZ = centerFolder
-      .add(params, "centerZ", -0.3, 0.3, 0.01)
+      .add(params, "centerZ", -1, 1, 0.001)
       .name("Pivot Z");
     controllerZ.onChange(value => {
         centerController.setCenterZ(value);
