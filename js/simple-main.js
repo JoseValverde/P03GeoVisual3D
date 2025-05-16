@@ -1,6 +1,6 @@
 /**
  * Script principal para la visualización 3D con Four.js
- * Muestra cuatro pajaritas con rotaciones en X de 0°, 90°, 180° y 270°
+ * Muestra cuatro pajaritas con rotaciones en Z de 0°, 90°, 180° y 270°
  * usando un pivot específico (X: -1.032, Y: 0.316, Z: -0.472)
  */
 
@@ -60,7 +60,7 @@ function init() {
  * Crear objetos para la escena
  */
 function createObjects() {
-    // Crear cuatro pajaritas con rotaciones consecutivas de 90° en el eje X
+    // Crear cuatro pajaritas con rotaciones consecutivas de 90° en el eje Z
     loadSVG('./pajarita001.svg', 0);
     loadSVG('./pajarita001.svg', Math.PI/2);  // 90 grados
     loadSVG('./pajarita001.svg', Math.PI);    // 180 grados
@@ -80,12 +80,12 @@ function createObjects() {
 /**
  * Carga un archivo SVG y lo convierte en una forma 3D
  * @param {string} url - Ruta al archivo SVG
- * @param {number} rotationX - Rotación en radianes alrededor del eje X
+ * @param {number} rotationZ - Rotación en radianes alrededor del eje Z
  */
-function loadSVG(url, rotationX = 0) {
+function loadSVG(url, rotationZ = 0) {
     const svgLoader = new SVGLoader();
     
-    console.log(`Intentando cargar SVG desde: ${url} con rotación X: ${rotationX} radianes`);
+    console.log(`Intentando cargar SVG desde: ${url} con rotación Z: ${rotationZ} radianes`);
     
     svgLoader.load(url, function(data) {
         console.log("SVG cargado correctamente:", data);
@@ -191,13 +191,26 @@ function loadSVG(url, rotationX = 0) {
         // Compensar la posición del grupo
         svgGroup.position.set(-pivotX, -pivotY, -pivotZ);
         
-        // Aplicar la rotación en el eje X según el parámetro
-        svgGroup.rotation.x = rotationX;
+        // Aplicar la rotación en el eje Z según el parámetro
+        svgGroup.rotation.z = rotationZ;
+        
+        // Crear un marcador (cruceta) para mostrar la posición del pivot
+        const pivotMarker = createPivotMarker();
+        
+        // Posicionar el marcador en el punto exacto del pivot
+        pivotMarker.position.set(
+            svgGroup.position.x + pivotX,
+            svgGroup.position.y + pivotY,
+            svgGroup.position.z + pivotZ
+        );
+        
+        // Añadir el marcador a la escena
+        scene.add(pivotMarker);
         
         // Añadir el grupo a la escena
         scene.add(svgGroup);
         
-        console.log(`SVG agregado a la escena, posición: (${svgGroup.position.x.toFixed(3)}, ${svgGroup.position.y.toFixed(3)}, ${svgGroup.position.z.toFixed(3)}), rotación X: ${rotationX.toFixed(3)}`);
+        console.log(`SVG agregado a la escena, posición: (${svgGroup.position.x.toFixed(3)}, ${svgGroup.position.y.toFixed(3)}, ${svgGroup.position.z.toFixed(3)}), rotación Z: ${rotationZ.toFixed(3)}`);
         
         // Creamos un objeto específico sin rotación automática
         const svgRotator = {
@@ -237,4 +250,46 @@ function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+/**
+ * Crea un marcador en forma de cruceta para visualizar el pivot
+ * @returns {THREE.Object3D} - Objeto 3D que representa el marcador
+ */
+function createPivotMarker() {
+    // Crear un grupo para contener las líneas de la cruceta
+    const markerGroup = new THREE.Group();
+    
+    // Tamaño de la cruceta
+    const size = 0.25;
+    
+    // Material para las líneas de la cruceta (azul brillante)
+    const material = new THREE.MeshBasicMaterial({ 
+        color: 0x0088ff,
+        transparent: true,
+        opacity: 0.8
+    });
+    
+    // Crear líneas en las tres direcciones (X, Y, Z)
+    // Eje X (línea horizontal)
+    const geometryX = new THREE.BoxGeometry(size * 2, size / 10, size / 10);
+    const lineX = new THREE.Mesh(geometryX, material);
+    markerGroup.add(lineX);
+    
+    // Eje Y (línea vertical)
+    const geometryY = new THREE.BoxGeometry(size / 10, size * 2, size / 10);
+    const lineY = new THREE.Mesh(geometryY, material);
+    markerGroup.add(lineY);
+    
+    // Eje Z (línea de profundidad)
+    const geometryZ = new THREE.BoxGeometry(size / 10, size / 10, size * 2);
+    const lineZ = new THREE.Mesh(geometryZ, material);
+    markerGroup.add(lineZ);
+    
+    // Añadir una pequeña esfera en el centro de la cruceta
+    const sphereGeometry = new THREE.SphereGeometry(size / 8, 16, 16);
+    const sphere = new THREE.Mesh(sphereGeometry, material);
+    markerGroup.add(sphere);
+    
+    return markerGroup;
 }
