@@ -1,7 +1,8 @@
 /**
  * Script principal para la visualización 3D con Four.js
  * Muestra cuatro pajaritas con rotaciones en Z de 0°, 90°, 180° y 270°
- * usando un pivot específico (X: -1.032, Y: 0.316, Z: -0.472)
+ * usando un pivot específico (X: -0.984, Y: 0.324, Z: -0.205)
+ * Las pajaritas rotan automáticamente alrededor de su punto pivot
  */
 
 // Importar los módulos de Three.js
@@ -180,52 +181,47 @@ function loadSVG(url, rotationZ = 0) {
             mesh.position.z -= center.z;
         });
         
-        // Establecer el pivot de rotación especificado (X: -1.032, Y: 0.316, Z: -0.472)
-        const pivotX = -1.032;
-        const pivotY = 0.316;
-        const pivotZ = -0.472;
+        // Establecer el pivot de rotación especificado (X: -0.984, Y: 0.324, Z: -0.205)
+        // Estas coordenadas son relativas al centro local (0,0,0) de cada figura
+        // El centro local corresponde a la mitad del ancho y alto de la figura
+        const pivotX = -0.984;
+        const pivotY = 0.324;
+        const pivotZ = -0.205;
         
-        // Aplicar el pivot de rotación moviendo los hijos
-        svgGroup.children.forEach(child => {
-            // Mover los hijos en dirección opuesta al pivot
-            child.position.x += pivotX;
-            child.position.y += pivotY;
-            child.position.z += pivotZ;
-        });
+        // Creamos un grupo adicional que servirá como punto de pivote
+        const pivotGroup = new THREE.Group();
+        scene.add(pivotGroup);
         
-        // Compensar la posición del grupo
-        svgGroup.position.set(-pivotX, -pivotY, -pivotZ);
+        // Movemos la geometría para que el punto de pivot quede en el origen
+        svgGroup.position.set(pivotX, pivotY, pivotZ);
+        
+        // Añadimos el grupo SVG al grupo pivot (ahora el SVG rota alrededor del pivot)
+        pivotGroup.add(svgGroup);
         
         // Aplicar la rotación en el eje Z según el parámetro
-        svgGroup.rotation.z = rotationZ;
+        pivotGroup.rotation.z = rotationZ;
         
         // Crear un marcador (cruceta) para mostrar la posición del pivot
         const pivotMarker = createPivotMarker();
         
-        // Posicionar el marcador en el punto exacto del pivot
-        pivotMarker.position.set(
-            svgGroup.position.x + pivotX,
-            svgGroup.position.y + pivotY,
-            svgGroup.position.z + pivotZ
-        );
+        // Posicionar el marcador en el origen del grupo pivot (0,0,0)
+        // ya que este punto representa ahora el eje de rotación
+        pivotMarker.position.set(0, 0, 0);
         
-        // Añadir el marcador a la escena
-        scene.add(pivotMarker);
-        
-        // Añadir el grupo a la escena
-        scene.add(svgGroup);
+        // Añadir el marcador al grupo pivot para que se mantenga en el punto de rotación
+        pivotGroup.add(pivotMarker);
         
         console.log(`SVG agregado a la escena, posición: (${svgGroup.position.x.toFixed(3)}, ${svgGroup.position.y.toFixed(3)}, ${svgGroup.position.z.toFixed(3)}), rotación Z: ${rotationZ.toFixed(3)}`);
         
         // Creamos un objeto específico con rotación automática en Z
         const svgRotator = {
-          object: svgGroup,
+          object: pivotGroup,   // Importante: rotamos el grupo pivot, no el svgGroup
           rotateX: { active: false, speed: 0 },
           rotateY: { active: false, speed: 0 },
-          rotateZ: { active: true, speed: 0.01 }, // Activamos la rotación en Z
+          rotateZ: { active: true, speed: 0.01 } // Activamos la rotación en Z
         };
         
-        // Añadir a la lista de objetos (sin rotación automática)
+        // Añadir a la lista de objetos
         objects.push(svgRotator);
     });
 }
@@ -260,6 +256,7 @@ function animate() {
             // Rotación en eje Z
             if (typeof obj.rotateZ === 'object' && obj.rotateZ !== null) {
                 if (obj.rotateZ.active) {
+                    // Aplicar la rotación correctamente alrededor del pivot
                     obj.object.rotation.z += obj.rotateZ.speed;
                 }
             }
