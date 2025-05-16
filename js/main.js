@@ -16,6 +16,14 @@ let controls;
 let objects = [];
 let axesHelper, centerMarker, svgAxesHelper; // Helpers para visualización
 let gui; // Panel de control
+let centerTextInfo; // Elemento HTML para mostrar coordenadas
+
+// Coordenadas originales del centro al cargar el SVG
+const originalCenter = {
+    x: 0,
+    y: 0,
+    z: 0
+};
 
 // Parámetros para controlar desde la GUI
 const params = {
@@ -25,18 +33,33 @@ const params = {
     showHelpers: true,
     showAxes: true,
     showCenterMarker: true,
+    rotationActive: true, // Controlar la rotación
     resetCenter: function() {
         centerController.resetCenter();
-        this.centerX = 0;
-        this.centerY = 0;
-        this.centerZ = 0;
-        updateGUI();
     }
 };
 
 // Inicializar la aplicación cuando el documento esté listo
 window.addEventListener('load', init);
 window.addEventListener('resize', onWindowResize);
+window.addEventListener('keydown', handleKeyDown); // Añadir manejo de teclado
+
+/**
+ * Manejar eventos de teclado
+ * @param {KeyboardEvent} event - El evento de teclado
+ */
+function handleKeyDown(event) {
+    // Tecla 'R' para activar/desactivar rotación
+    if (event.key === 'r' || event.key === 'R') {
+        window.toggleRotation();
+        // Actualizar el botón físico si existe
+        const button = document.getElementById('rotationToggle');
+        if (button) {
+            button.textContent = params.rotationActive ? 'Pausar Rotación' : 'Activar Rotación';
+            button.style.backgroundColor = params.rotationActive ? '#4CAF50' : '#f44336';
+        }
+    }
+}
 
 /**
  * Inicializar Three.js y configurar la escena
@@ -59,6 +82,63 @@ function init() {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Sombras suavizadas
     renderer.outputColorSpace = THREE.SRGBColorSpace; // Mejor representación de colores
     document.getElementById('container').appendChild(renderer.domElement);
+    
+    // Crear el elemento HTML para mostrar coordenadas
+    centerTextInfo = document.createElement('div');
+    centerTextInfo.id = 'centerInfo';
+    centerTextInfo.style.position = 'absolute';
+    centerTextInfo.style.bottom = '10px';
+    centerTextInfo.style.left = '10px';
+    centerTextInfo.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    centerTextInfo.style.color = 'white';
+    centerTextInfo.style.padding = '10px';
+    centerTextInfo.style.fontFamily = 'monospace';
+    centerTextInfo.style.fontSize = '14px';
+    centerTextInfo.style.borderRadius = '5px';
+    centerTextInfo.style.zIndex = '1000';
+    centerTextInfo.style.lineHeight = '1.5';
+    centerTextInfo.style.width = 'auto';
+    centerTextInfo.style.minWidth = '300px';
+    centerTextInfo.innerHTML = `
+        <strong>Centro actual:</strong> X: 0.000, Y: 0.000, Z: 0.000<br>
+        <strong>Ajuste desde (0,0,0):</strong> ΔX: 0.000, ΔY: 0.000, ΔZ: 0.000
+    `;
+    document.getElementById('container').appendChild(centerTextInfo);
+    
+    // Crear botón físico para controlar la rotación
+    const rotationButton = document.createElement('button');
+    rotationButton.id = 'rotationToggle';
+    rotationButton.textContent = 'Pausar Rotación';
+    rotationButton.style.position = 'absolute';
+    rotationButton.style.top = '10px';
+    rotationButton.style.right = '10px';
+    rotationButton.style.padding = '8px 16px';
+    rotationButton.style.backgroundColor = '#4CAF50';
+    rotationButton.style.color = 'white';
+    rotationButton.style.border = 'none';
+    rotationButton.style.borderRadius = '4px';
+    rotationButton.style.cursor = 'pointer';
+    rotationButton.style.fontFamily = 'sans-serif';
+    rotationButton.style.fontSize = '14px';
+    rotationButton.style.zIndex = '1000';
+    rotationButton.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
+    
+    // Añadir efecto hover
+    rotationButton.addEventListener('mouseover', function() {
+        this.style.backgroundColor = '#45a049';
+    });
+    rotationButton.addEventListener('mouseout', function() {
+        this.style.backgroundColor = params.rotationActive ? '#4CAF50' : '#f44336';
+    });
+    
+    // Añadir evento click para activar/desactivar la rotación
+    rotationButton.addEventListener('click', function() {
+        window.toggleRotation();
+        this.textContent = params.rotationActive ? 'Pausar Rotación' : 'Activar Rotación';
+        this.style.backgroundColor = params.rotationActive ? '#4CAF50' : '#f44336';
+    });
+    
+    document.getElementById('container').appendChild(rotationButton);
     
     // Añadir controles de órbita
     controls = new OrbitControls(camera, renderer.domElement);
@@ -183,6 +263,14 @@ function loadSVG(url) {
         const bbox = new THREE.Box3().setFromObject(svgGroup);
         const center = bbox.getCenter(new THREE.Vector3());
         
+        console.log("Centro geométrico original del SVG:", center);
+        
+        // Guardamos las coordenadas originales del centro
+        // El centro original es (0,0,0) ya que vamos a mover la geometría para que quede centrada
+        originalCenter.x = 0;
+        originalCenter.y = 0;
+        originalCenter.z = 0;
+        
         // Movemos la geometría para que el centro quede en el origen 
         // (esto hace que la rotación sea alrededor del centro del objeto)
         svgGroup.children.forEach(mesh => {
@@ -191,8 +279,8 @@ function loadSVG(url) {
             mesh.position.z -= center.z;
         });
         
-        // Posicionar el grupo en la escena - más alto y un poco adelante para asegurar visibilidad
-        svgGroup.position.set(0, 0, -1);
+        // Posicionar el grupo en la escena - centrado en el origen para mejor control
+        svgGroup.position.set(0, 0, 0);
         
         // Añadir el grupo a la escena
         scene.add(svgGroup);
@@ -211,8 +299,13 @@ function loadSVG(url) {
             new THREE.SphereGeometry(0.05, 16, 16), // Pequeña esfera
             new THREE.MeshBasicMaterial({color: 0xff00ff}) // Color magenta
         );
-        centerMarker.position.copy(svgGroup.position); // Posición igual a la del SVG
+        // Añadir el marcador a la escena directamente
         scene.add(centerMarker);
+        // Posicionar el marcador en el origen del grupo SVG inicialmente
+        centerMarker.position.copy(svgGroup.position);
+        
+        // Actualizar la información del centro
+        updateCenterInfoText();
         
         // Añadir ejes locales para la pajarita
         svgAxesHelper = new THREE.AxesHelper(1); // Tamaño de 1 unidad
@@ -247,35 +340,38 @@ function animate() {
     Utils.animate(objects, (obj) => {
         // Si es un objeto con configuración específica de rotación por eje (nuevo formato con velocidad)
         if (obj.object && (obj.hasOwnProperty('rotateX') || obj.hasOwnProperty('rotateY') || obj.hasOwnProperty('rotateZ'))) {
-            // Comprobar si las propiedades son objetos (nuevo formato) o booleanos (formato anterior)
-            
-            // Rotación en eje X
-            if (typeof obj.rotateX === 'object' && obj.rotateX !== null) {
-                // Nuevo formato: { active: bool, speed: number }
-                if (obj.rotateX.active) {
-                    obj.object.rotation.x += obj.rotateX.speed;
+            // Solo aplicar rotación si está activa globalmente
+            if (params.rotationActive) {
+                // Comprobar si las propiedades son objetos (nuevo formato) o booleanos (formato anterior)
+                
+                // Rotación en eje X
+                if (typeof obj.rotateX === 'object' && obj.rotateX !== null) {
+                    // Nuevo formato: { active: bool, speed: number }
+                    if (obj.rotateX.active) {
+                        obj.object.rotation.x += obj.rotateX.speed;
+                    }
+                } else if (obj.rotateX === true) {
+                    // Formato anterior: booleano
+                    obj.object.rotation.x += 0.01;
                 }
-            } else if (obj.rotateX === true) {
-                // Formato anterior: booleano
-                obj.object.rotation.x += 0.01;
-            }
-            
-            // Rotación en eje Y
-            if (typeof obj.rotateY === 'object' && obj.rotateY !== null) {
-                if (obj.rotateY.active) {
-                    obj.object.rotation.y += obj.rotateY.speed;
+                
+                // Rotación en eje Y
+                if (typeof obj.rotateY === 'object' && obj.rotateY !== null) {
+                    if (obj.rotateY.active) {
+                        obj.object.rotation.y += obj.rotateY.speed;
+                    }
+                } else if (obj.rotateY === true) {
+                    obj.object.rotation.y += 0.01;
                 }
-            } else if (obj.rotateY === true) {
-                obj.object.rotation.y += 0.01;
-            }
-            
-            // Rotación en eje Z
-            if (typeof obj.rotateZ === 'object' && obj.rotateZ !== null) {
-                if (obj.rotateZ.active) {
-                    obj.object.rotation.z += obj.rotateZ.speed;
+                
+                // Rotación en eje Z
+                if (typeof obj.rotateZ === 'object' && obj.rotateZ !== null) {
+                    if (obj.rotateZ.active) {
+                        obj.object.rotation.z += obj.rotateZ.speed;
+                    }
+                } else if (obj.rotateZ === true) {
+                    obj.object.rotation.z += -0.01;
                 }
-            } else if (obj.rotateZ === true) {
-                obj.object.rotation.z += -0.01;
             }
         }
     });
@@ -307,37 +403,63 @@ function toggleHelpers(showAxes = true, showCenter = true, showSvgAxes = true) {
 }
 
 /**
- * Ajusta el centro de la pajarita
+ * Ajusta el centro de la pajarita estableciendo valores absolutos
  * @param {Object} svgGroup - El grupo que contiene la pajarita
- * @param {number} offsetX - Desplazamiento en el eje X
- * @param {number} offsetY - Desplazamiento en el eje Y
- * @param {number} offsetZ - Desplazamiento en el eje Z
+ * @param {number} x - Posición X del centro
+ * @param {number} y - Posición Y del centro
+ * @param {number} z - Posición Z del centro
  */
-function adjustSvgCenter(svgGroup, offsetX = 0, offsetY = 0, offsetZ = 0) {
+function setCenterPosition(svgGroup, x = 0, y = 0, z = 0) {
     if (!svgGroup) {
         console.error("No se ha encontrado el grupo SVG");
         return;
     }
     
-    // Aplicar el desplazamiento a todos los hijos
-    svgGroup.children.forEach(mesh => {
-        if (mesh !== svgAxesHelper) { // No ajustar el helper de ejes
-            mesh.position.x += offsetX;
-            mesh.position.y += offsetY;
-            mesh.position.z += offsetZ;
+    // Calculamos la diferencia entre la posición anterior y la nueva
+    const deltaX = x - params.centerX;
+    const deltaY = y - params.centerY;
+    const deltaZ = z - params.centerZ;
+    
+    // 1. Establecer el punto de pivote para todos los objetos dentro del grupo
+    // Guardamos la posición mundial original
+    const worldPosition = new THREE.Vector3();
+    svgGroup.getWorldPosition(worldPosition);
+    
+    // Movemos cada elemento dentro del grupo para cambiar su centro de rotación
+    svgGroup.children.forEach(child => {
+        if (child !== svgAxesHelper) {
+            child.position.x += deltaX;
+            child.position.y += deltaY;
+            child.position.z += deltaZ;
         }
     });
     
-    // Actualizar la posición del marcador del centro para reflejar el nuevo centro
+    // 2. Compensamos el movimiento del grupo para mantener la posición visual
+    svgGroup.position.x -= deltaX;
+    svgGroup.position.y -= deltaY;
+    svgGroup.position.z -= deltaZ;
+    
+    // 3. Actualizar la posición del marcador del centro para que coincida con el nuevo centro de rotación
     if (centerMarker) {
         centerMarker.position.set(
-            svgGroup.position.x, 
-            svgGroup.position.y, 
-            svgGroup.position.z
+            svgGroup.position.x + x,
+            svgGroup.position.y + y,
+            svgGroup.position.z + z
         );
     }
     
-    console.log(`Centro ajustado - X: ${offsetX}, Y: ${offsetY}, Z: ${offsetZ}`);
+    // Guardar los valores en los parámetros
+    params.centerX = x;
+    params.centerY = y;
+    params.centerZ = z;
+    
+    // Actualizar la GUI y el texto informativo
+    updateGUI();
+    
+    console.log(`Nuevo centro de rotación: (${x}, ${y}, ${z})`);
+    console.log(`Posición del grupo SVG: (${svgGroup.position.x}, ${svgGroup.position.y}, ${svgGroup.position.z})`);
+    
+    console.log(`Centro ajustado a posición: X: ${x.toFixed(2)}, Y: ${y.toFixed(2)}, Z: ${z.toFixed(2)}`);
 }
 
 // Controlador para manejar el centro de la pajarita
@@ -351,48 +473,61 @@ const centerController = {
         console.log("Controlador de centro configurado correctamente");
     },
     
-    // Mover el centro en el eje X
-    moveX: function(amount) {
+    // Establecer el centro en una posición absoluta
+    setCenter: function(x, y, z) {
         if (!this.svgGroup) return;
-        adjustSvgCenter(this.svgGroup, amount, 0, 0);
+        setCenterPosition(this.svgGroup, x, y, z);
     },
     
-    // Mover el centro en el eje Y
-    moveY: function(amount) {
+    // Establecer solo la posición X del centro
+    setCenterX: function(x) {
         if (!this.svgGroup) return;
-        adjustSvgCenter(this.svgGroup, 0, amount, 0);
+        setCenterPosition(this.svgGroup, x, params.centerY, params.centerZ);
     },
     
-    // Mover el centro en el eje Z
-    moveZ: function(amount) {
+    // Establecer solo la posición Y del centro
+    setCenterY: function(y) {
         if (!this.svgGroup) return;
-        adjustSvgCenter(this.svgGroup, 0, 0, amount);
+        setCenterPosition(this.svgGroup, params.centerX, y, params.centerZ);
     },
     
-    // Mover el centro en los tres ejes
-    move: function(x, y, z) {
+    // Establecer solo la posición Z del centro
+    setCenterZ: function(z) {
         if (!this.svgGroup) return;
-        adjustSvgCenter(this.svgGroup, x, y, z);
+        setCenterPosition(this.svgGroup, params.centerX, params.centerY, z);
     },
     
-    // Reiniciar el centro (calcular automáticamente)
+    // Reiniciar el centro a la posición original (0,0,0)
     resetCenter: function() {
         if (!this.svgGroup) return;
         
-        // Calcular el centro geométrico
-        const bbox = new THREE.Box3().setFromObject(this.svgGroup);
-        const center = bbox.getCenter(new THREE.Vector3());
+        console.log("Reiniciando centro a la posición (0,0,0)");
         
-        // Reiniciar las posiciones de los hijos
-        this.svgGroup.children.forEach(mesh => {
-            if (mesh !== svgAxesHelper) {
-                mesh.position.x -= center.x;
-                mesh.position.y -= center.y;
-                mesh.position.z -= center.z;
+        // Guardar las posiciones actuales de los objetos y del grupo
+        const currentGroupPosition = this.svgGroup.position.clone();
+        const currentChildPositions = [];
+        
+        this.svgGroup.children.forEach(child => {
+            if (child !== svgAxesHelper) {
+                currentChildPositions.push({
+                    object: child,
+                    position: child.position.clone()
+                });
             }
         });
         
-        console.log("Centro reiniciado");
+        // Restablecer el centro a la posición (0,0,0)
+        this.setCenter(0, 0, 0);
+        
+        // Forzar la actualización del marcador de centro
+        if (centerMarker) {
+            centerMarker.position.copy(this.svgGroup.position);
+        }
+        
+        // Asegurarse de actualizar el texto informativo
+        updateCenterInfoText();
+        
+        console.log("Centro reiniciado con éxito. Nueva posición del grupo SVG:", this.svgGroup.position);
     }
 };
 
@@ -405,20 +540,86 @@ function setupGUI() {
     // Carpeta para controlar el centro de la figura
     const centerFolder = gui.addFolder('Centro de la figura');
     
+    // Panel de información para mostrar los valores actuales
+    const infoFolder = gui.addFolder('Coordenadas actuales');
+    
+    // Crear campos de solo lectura para mostrar los valores
+    const infoX = infoFolder.add({infoX: params.centerX.toFixed(3)}, 'infoX').name('X:').listen();
+    infoX.__input.readOnly = true;
+    
+    const infoY = infoFolder.add({infoY: params.centerY.toFixed(3)}, 'infoY').name('Y:').listen();
+    infoY.__input.readOnly = true;
+    
+    const infoZ = infoFolder.add({infoZ: params.centerZ.toFixed(3)}, 'infoZ').name('Z:').listen();
+    infoZ.__input.readOnly = true;
+    
+    // Panel para mostrar la diferencia con las coordenadas originales
+    const deltaFolder = gui.addFolder('Ajuste desde centro (0,0,0)');
+    
+    // Crear campos de solo lectura para mostrar las diferencias
+    const deltaX = deltaFolder.add({deltaX: '0.000'}, 'deltaX').name('ΔX:').listen();
+    deltaX.__input.readOnly = true;
+    
+    const deltaY = deltaFolder.add({deltaY: '0.000'}, 'deltaY').name('ΔY:').listen();
+    deltaY.__input.readOnly = true;
+    
+    const deltaZ = deltaFolder.add({deltaZ: '0.000'}, 'deltaZ').name('ΔZ:').listen();
+    deltaZ.__input.readOnly = true;
+    
+    // Función para actualizar los valores mostrados
+    const updateInfoDisplays = function() {
+        // Actualizar coordenadas actuales
+        infoX.object.infoX = params.centerX.toFixed(3);
+        infoY.object.infoY = params.centerY.toFixed(3);
+        infoZ.object.infoZ = params.centerZ.toFixed(3);
+        
+        // Calcular y actualizar diferencias
+        const diffX = params.centerX - originalCenter.x;
+        const diffY = params.centerY - originalCenter.y;
+        const diffZ = params.centerZ - originalCenter.z;
+        
+        deltaX.object.deltaX = diffX.toFixed(3);
+        deltaY.object.deltaY = diffY.toFixed(3);
+        deltaZ.object.deltaZ = diffZ.toFixed(3);
+        
+        // Forzar la actualización de la GUI
+        infoX.updateDisplay();
+        infoY.updateDisplay();
+        infoZ.updateDisplay();
+        deltaX.updateDisplay();
+        deltaY.updateDisplay();
+        deltaZ.updateDisplay();
+    };
+    
+    // Configurar observadores para los cambios en el centro
+    const originalUpdateGUI = updateGUI;
+    updateGUI = function() {
+        originalUpdateGUI();
+        updateInfoDisplays();
+    };
+    
+    // Abrir la carpeta de información por defecto
+    infoFolder.open();
+    deltaFolder.open();
+    
     // Controles para mover el centro en cada eje
-    centerFolder.add(params, 'centerX', -2, 2, 0.01).name('Posición X').onChange(value => {
-        const delta = value - params.centerX;
-        centerController.moveX(delta);
+    const controllerX = centerFolder.add(params, 'centerX', -0.3, 0.3, 0.01).name('Posición X');
+    controllerX.onChange(value => {
+        centerController.setCenterX(value);
     });
     
-    centerFolder.add(params, 'centerY', -2, 2, 0.01).name('Posición Y').onChange(value => {
-        const delta = value - params.centerY;
-        centerController.moveY(delta);
+    const controllerY = centerFolder
+      .add(params, "centerY", -0.3, 0.3, 0.01)
+      .name("Posición Y");
+    controllerY.onChange(value => {
+        centerController.setCenterY(value);
     });
     
-    centerFolder.add(params, 'centerZ', -2, 2, 0.01).name('Posición Z').onChange(value => {
-        const delta = value - params.centerZ;
-        centerController.moveZ(delta);
+    const controllerZ = centerFolder
+      .add(params, "centerZ", -0.3, 0.3, 0.01)
+      .name("Posición Z");
+    controllerZ.onChange(value => {
+        centerController.setCenterZ(value);
     });
     
     centerFolder.add(params, 'resetCenter').name('Reiniciar Centro');
@@ -434,7 +635,14 @@ function setupGUI() {
     });
     
     helpersFolder.add(params, 'showCenterMarker').name('Mostrar Centro').onChange(value => {
-        if (centerMarker) centerMarker.visible = value;
+        if (centerMarker) {
+            centerMarker.visible = value;
+        }
+    });
+    
+    // Botón para activar/desactivar la rotación
+    helpersFolder.add(params, 'rotationActive').name('Rotación Activa').onChange(value => {
+        console.log(`Rotación ${value ? 'activada' : 'desactivada'}`);
     });
     
     helpersFolder.open();
@@ -445,11 +653,59 @@ function setupGUI() {
  */
 function updateGUI() {
     // Actualizar los controles de la GUI con los valores actuales
-    for (const controller of gui.__controllers) {
-        controller.updateDisplay();
+    if (gui) {
+        for (let folder in gui.__folders) {
+            const controllers = gui.__folders[folder].__controllers;
+            for (const controller of controllers) {
+                controller.updateDisplay();
+            }
+        }
+    }
+    
+    // Actualizar el texto informativo con las coordenadas actuales
+    updateCenterInfoText();
+}
+
+/**
+ * Actualiza el texto informativo con las coordenadas actuales del centro
+ */
+function updateCenterInfoText() {
+    if (centerTextInfo) {
+        // Calcular la diferencia entre las coordenadas actuales y las originales (0,0,0)
+        // Como originalCenter ya está en (0,0,0), simplemente mostrar los valores actuales como delta
+        const deltaX = params.centerX;
+        const deltaY = params.centerY; 
+        const deltaZ = params.centerZ;
+        
+        // Mostrar tanto las coordenadas actuales como la diferencia con las originales
+        centerTextInfo.innerHTML = `
+            <strong>Centro actual:</strong> X: ${params.centerX.toFixed(3)}, Y: ${params.centerY.toFixed(3)}, Z: ${params.centerZ.toFixed(3)}<br>
+            <strong>Ajuste desde (0,0,0):</strong> ΔX: ${deltaX.toFixed(3)}, ΔY: ${deltaY.toFixed(3)}, ΔZ: ${deltaZ.toFixed(3)}
+        `;
     }
 }
 
 // Exponer funciones para poder usarlas desde la consola
 window.toggleHelpers = toggleHelpers;
 window.centerController = centerController;
+
+// Función para alternar la rotación
+window.toggleRotation = function() {
+    params.rotationActive = !params.rotationActive;
+    console.log(`Rotación ${params.rotationActive ? 'activada' : 'desactivada'}`);
+    // Actualizar la GUI para reflejar el cambio
+    if (gui) {
+        const helpersFolder = gui.__folders['Visualización'];
+        if (helpersFolder) {
+            // Buscar el controlador de rotación y actualizar su visualización
+            const controllers = helpersFolder.__controllers;
+            for (const controller of controllers) {
+                if (controller.property === 'rotationActive') {
+                    controller.updateDisplay();
+                    break;
+                }
+            }
+        }
+    }
+    return params.rotationActive;
+};
