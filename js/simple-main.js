@@ -37,8 +37,10 @@ function init() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Sombras suavizadas
+    renderer.shadowMap.type = THREE.VSMShadowMap; // Sombras muy suavizadas (Variance Shadow Map)
     renderer.outputColorSpace = THREE.SRGBColorSpace; // Mejor representación de colores
+    renderer.toneMapping = THREE.ReinhardToneMapping; // Mapeo tonal más suave
+    renderer.toneMappingExposure = 1.5; // Mayor exposición para reducir contraste en sombras
     document.getElementById('container').appendChild(renderer.domElement);
     
     // Añadir controles de órbita
@@ -67,12 +69,12 @@ function createObjects() {
     loadSVG('./pajarita001.svg', 3*Math.PI/2); // 270 grados
     
     // Crear un plano como suelo
-    const floor = Utils.createMesh('cube', { width: 100, height: 0.1, depth: 100 }, {
+    const floor = Utils.createMesh('cube', { width: 1000, height: 0.1, depth: 1000 }, {
         type: 'MeshStandardMaterial',
         color: 0x95a5a6,
         roughness: 0.8
     });
-    floor.position.y = -1.5;
+    floor.position.y = -3.5;
     floor.receiveShadow = true;
     scene.add(floor);
 }
@@ -128,7 +130,7 @@ function loadSVG(url, rotationZ = 0) {
             shapes.forEach((shape) => {
                 // Crear la geometría extruida (con profundidad y bisel para mayor realismo)
                 const geometry = new THREE.ExtrudeGeometry(shape, {
-                    depth: 60,          // Profundidad moderada
+                    depth: 80,          // Profundidad moderada
                     bevelEnabled: true,   // Activar bisel para bordes suaves
                     bevelThickness: 0.03, // Grosor del bisel
                     bevelSize: 0.5,      // Tamaño del bisel
@@ -136,12 +138,15 @@ function loadSVG(url, rotationZ = 0) {
                     bevelSegments: 30      // Más segmentos para un bisel más suave
                 });
                 
-                // Crear un material para la malla con aspecto más metálico
+                // Crear un material para la malla con aspecto más metálico y sombras muy suaves
                 const material = new THREE.MeshStandardMaterial({
                   color: 0xaa8a50,       // Color dorado apagado
-                  metalness: 0.6,        // Más metálico
-                  roughness: 0.3,        // Menos rugosidad para más brillo
-                  flatShading: false     // Sombreado suave
+                  metalness: 0.5,        // Ligeramente menos metálico para sombras más suaves
+                  roughness: 0.4,        // Mayor rugosidad para difuminar mejor las sombras
+                  flatShading: false,    // Sombreado suave (no plano)
+                  envMapIntensity: 1.2,  // Intensidad del mapa de entorno (reflejo)
+                  shadowSide: THREE.FrontSide, // Mejora la calidad de las sombras proyectadas
+                  dithering: true        // Añade dithering para suavizar las transiciones de sombra
                 });
                 
                 // Crear la malla
@@ -212,12 +217,12 @@ function loadSVG(url, rotationZ = 0) {
         
         console.log(`SVG agregado a la escena, posición: (${svgGroup.position.x.toFixed(3)}, ${svgGroup.position.y.toFixed(3)}, ${svgGroup.position.z.toFixed(3)}), rotación Z: ${rotationZ.toFixed(3)}`);
         
-        // Creamos un objeto específico sin rotación automática
+        // Creamos un objeto específico con rotación automática en Z
         const svgRotator = {
           object: svgGroup,
           rotateX: { active: false, speed: 0 },
           rotateY: { active: false, speed: 0 },
-          rotateZ: { active: false, speed: 0 },
+          rotateZ: { active: true, speed: 0.01 }, // Activamos la rotación en Z
         };
         
         // Añadir a la lista de objetos (sin rotación automática)
@@ -234,9 +239,31 @@ function animate() {
     // Actualizar controles
     controls.update();
     
-    // Animar objetos (en este caso no hay animación de rotación)
+    // Animar objetos con rotación automática
     Utils.animate(objects, (obj) => {
-        // No aplicamos rotación automática para esta visualización estática
+        // Si es un objeto con configuración específica de rotación por eje
+        if (obj.object && (obj.hasOwnProperty('rotateX') || obj.hasOwnProperty('rotateY') || obj.hasOwnProperty('rotateZ'))) {
+            // Rotación en eje X
+            if (typeof obj.rotateX === 'object' && obj.rotateX !== null) {
+                if (obj.rotateX.active) {
+                    obj.object.rotation.x += obj.rotateX.speed;
+                }
+            }
+            
+            // Rotación en eje Y
+            if (typeof obj.rotateY === 'object' && obj.rotateY !== null) {
+                if (obj.rotateY.active) {
+                    obj.object.rotation.y += obj.rotateY.speed;
+                }
+            }
+            
+            // Rotación en eje Z
+            if (typeof obj.rotateZ === 'object' && obj.rotateZ !== null) {
+                if (obj.rotateZ.active) {
+                    obj.object.rotation.z += obj.rotateZ.speed;
+                }
+            }
+        }
     });
     
     // Renderizar la escena

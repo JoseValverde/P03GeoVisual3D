@@ -10,8 +10,8 @@ const Utils = {
      * @param {THREE.Scene} scene - La escena a la que añadir las luces
      */
     setupBasicLights: function(scene) {
-        // Luz ambiente para iluminación general
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        // Luz ambiente para iluminación general (aumentada para sombras más suaves)
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
         
         // Luz principal direccional (simula el sol)
@@ -19,28 +19,36 @@ const Utils = {
         directionalLight.position.set(5, 10, 7.5);
         directionalLight.castShadow = true;
         
-        // Configurar las sombras para mejor calidad
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
+        // Configurar las sombras para mayor difuminado y suavidad
+        directionalLight.shadow.mapSize.width = 4096; // Mayor resolución
+        directionalLight.shadow.mapSize.height = 4096;
         directionalLight.shadow.camera.near = 0.5;
         directionalLight.shadow.camera.far = 50;
         directionalLight.shadow.camera.left = -10;
         directionalLight.shadow.camera.right = 10;
         directionalLight.shadow.camera.top = 10;
         directionalLight.shadow.camera.bottom = -10;
-        directionalLight.shadow.bias = -0.0003;
+        directionalLight.shadow.bias = -0.0001; // Ajuste para evitar artefactos
+        directionalLight.shadow.normalBias = 0.08; // Mayor suavizado de los bordes
+        directionalLight.shadow.radius = 20; // Mayor desenfoque/difuminado de las sombras
+        directionalLight.shadow.blurSamples = 4; // Más muestras para el desenfoque
         
         scene.add(directionalLight);
         
-        // Luz de relleno para suavizar las sombras
-        const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
+        // Luz de relleno más intensa para suavizar las sombras
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
         fillLight.position.set(-5, 5, -5);
         scene.add(fillLight);
+        
+        // Añadir una luz hemisférica suave para iluminar toda la escena de manera más uniforme
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xfff0e0, 0.3);
+        scene.add(hemiLight);
         
         return {
             ambient: ambientLight,
             main: directionalLight,
-            fill: fillLight
+            fill: fillLight,
+            hemi: hemiLight
         };
     },
     
