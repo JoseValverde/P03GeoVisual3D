@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualización 3D - Cuatro Pajaritas en X</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        body { margin: 0; }
+        #container { 
+            width: 100%; 
+            height: 100vh; 
+            overflow: hidden;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./js/lib/three.module.js",
+                "three/examples/jsm/controls/OrbitControls": "./js/lib/examples/jsm/controls/OrbitControls.js",
+                "three/examples/jsm/loaders/GLTFLoader": "./js/lib/examples/jsm/loaders/GLTFLoader.js",
+                "three/examples/jsm/loaders/SVGLoader": "./js/lib/examples/jsm/loaders/SVGLoader.js"
+            }
+        }
+    </script>
+    
+    <script type="module" src="./js/simple-main.js"></script>
+</body>
+</html>
