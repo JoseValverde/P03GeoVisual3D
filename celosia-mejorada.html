@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Celosía Mejorada - Visualización 3D de Pajaritas</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #container { position: absolute; width: 100%; height: 100%; }
+        #info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <div id="info">
+        <strong>Controles:</strong><br>
+        <b>R</b>: Activar/detener rotación<br>
+        <b>A</b>: Mostrar/ocultar marcadores<br>
+        <b>1/2</b>: Ajustar número de anillos<br>
+        <b>3/4</b>: Ajustar distancia entre anillos<br>
+        <b>5/6</b>: Ajustar escala<br>
+        <b>7/8</b>: Ajustar altura Z<br>
+        <b>9/0</b>: Ajustar offset angular<br>
+        <b>-/+</b>: Ajustar desplazamiento radial<br>
+        <b>F/G</b>: Ajustar densidad de pajaritas por anillo<br>
+    </div>
+
+    <script type="module" src="js/celosia-mejorada.js"></script>
+</body>
+</html>
