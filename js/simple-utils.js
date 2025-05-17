@@ -11,12 +11,12 @@ const Utils = {
      */
     setupBasicLights: function(scene) {
         // Luz ambiente para iluminación general (aumentada para sombras más suaves)
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-        scene.add(ambientLight);
+        const ambientLight = new THREE.AmbientLight(0x000000, 0.7);
+       // scene.add(ambientLight);
         
         // Luz principal direccional (simula el sol)
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(5, 10, 7.5);
+        directionalLight.position.set(5, 5, 17.5);
         directionalLight.castShadow = true;
         
         // Configurar las sombras para mayor difuminado y suavidad
@@ -41,7 +41,7 @@ const Utils = {
         scene.add(fillLight);
         
         // Añadir una luz hemisférica suave para iluminar toda la escena de manera más uniforme
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xfff0e0, 0.3);
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xfff0e0, 0.1);
         scene.add(hemiLight);
         
         return {

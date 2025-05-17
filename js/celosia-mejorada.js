@@ -32,6 +32,7 @@
 import * as THREE from './lib/three.module.js';
 import { OrbitControls } from './lib/examples/jsm/controls/OrbitControls.js';
 import { SVGLoader } from './lib/examples/jsm/loaders/SVGLoader.js';
+import { DirectionalLightHelper, HemisphereLightHelper } from './lib/three.module.js';
 import Utils from './simple-utils.js';
 
 // Variables globales
@@ -43,10 +44,15 @@ let originalRotations = []; // Almacenar rotaciones iniciales
 // Variables para la niebla
 let currentFog = null;
 let fogType = 'exponential'; // 'none', 'linear', 'exponential'
-let fogColor = 0xbfbdb7; // Mismo color que el fondo
+let fogColor = 0x333333; // 0xbfbdb7; Color de niebla (mismo que el fondo)
+// 0xbfbdb7; // Mismo color que el fondo
 let fogDensity = 0.016; // Valor por defecto más suave
 let fogNear = 1;
 let fogFar = 20;
+
+// Variables para helpers de luces
+let lightHelpers = [];
+let lights = null;
 let pivotX = 0.502; // Coordenada X del pivot
 let pivotY = -0.3451; // Coordenada Y del pivot
 let pivotZ = 0;      // Coordenada Z del pivot
@@ -75,7 +81,7 @@ window.addEventListener('keydown', handleKeyDown);
 function init() {
     // Crear escena
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xbfbdb7);
+    scene.background = new THREE.Color(0x333333);//(0xbfbdb7);
     
     // Crear cámara
     const aspectRatio = window.innerWidth / window.innerHeight;
@@ -99,7 +105,10 @@ function init() {
     controls.dampingFactor = 0.05;
     
     // Configurar luces
-    Utils.setupBasicLights(scene);
+    lights = Utils.setupBasicLights(scene);
+    
+    // Crear helpers para las luces
+    createLightHelpers();
     
     // Configurar niebla exponencial por defecto
     currentFog = new THREE.FogExp2(fogColor, fogDensity);
@@ -128,7 +137,7 @@ function createObjects() {
         color: 0x95a5a6,
         roughness: 0.8
     });
-    floor.position.y = -3.5;
+    floor.position.y = -7;
     floor.receiveShadow = true;
     scene.add(floor);
 }
@@ -298,6 +307,11 @@ function handleKeyDown(event) {
         // Aplicar visibilidad a las líneas de conexión
         connectionLines.forEach(line => {
             line.visible = markersVisible;
+        });
+        
+        // Aplicar visibilidad a los helpers de luces
+        lightHelpers.forEach(helper => {
+            helper.visible = markersVisible;
         });
         
         console.log("Marcadores " + (markersVisible ? "visibles" : "ocultos"));
@@ -488,6 +502,15 @@ function animate() {
             }
         }
     });
+    
+    // Actualizar los helpers de luces si están visibles
+    if (markersVisible) {
+        lightHelpers.forEach(helper => {
+            if (helper.update) {
+                helper.update();
+            }
+        });
+    }
     
     // Renderizar la escena
     renderer.render(scene, camera);
@@ -779,4 +802,39 @@ function createCenterMarker() {
     markerGroup.add(sphere);
     
     return markerGroup;
+}
+
+/**
+ * Crea los helpers para visualizar las luces
+ */
+function createLightHelpers() {
+    // Limpiar helpers existentes
+    lightHelpers.forEach(helper => scene.remove(helper));
+    lightHelpers = [];
+    
+    if (lights) {
+        // Helper para la luz direccional principal
+        if (lights.main) {
+            const directionalHelper = new DirectionalLightHelper(lights.main, 1, 0xff0000);
+            directionalHelper.visible = markersVisible;
+            scene.add(directionalHelper);
+            lightHelpers.push(directionalHelper);
+        }
+        
+        // Helper para la luz de relleno
+        if (lights.fill) {
+            const fillHelper = new DirectionalLightHelper(lights.fill, 0.8, 0x00ff00);
+            fillHelper.visible = markersVisible;
+            scene.add(fillHelper);
+            lightHelpers.push(fillHelper);
+        }
+        
+        // Helper para la luz hemisférica
+        if (lights.hemi) {
+            const hemiHelper = new HemisphereLightHelper(lights.hemi, 1);
+            hemiHelper.visible = markersVisible;
+            scene.add(hemiHelper);
+            lightHelpers.push(hemiHelper);
+        }
+    }
 }

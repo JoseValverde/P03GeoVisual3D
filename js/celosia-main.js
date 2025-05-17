@@ -134,29 +134,38 @@ function crearAnilloInterior() {
 /**
  * Crea la celosía radial de pajaritas
  * Esta función crea pajaritas que se extienden desde el anillo interior hacia afuera
- * manteniendo el mismo patrón del primer anillo
+ * con un número creciente de pajaritas en cada anillo según su distancia al centro
  */
 function crearCelosiaRadial() {
-    // Número de direcciones radiales (mismo que el anillo interior)
-    const numDirecciones = 6;
-    const angleStep = (2 * Math.PI) / numDirecciones; // 60° en radianes
+    // Número base de pajaritas en el anillo interior
+    const numPajaritasBase = 6;
     
-    // Para cada dirección radial
-    for (let dir = 0; dir < numDirecciones; dir++) {
-        const angulo = dir * angleStep; // Ángulo de la dirección (igual al del anillo interior)
+    // Para cada anillo
+    for (let rep = 1; rep <= numRepeticiones; rep++) {
+        // Calculamos la distancia desde el centro para este anillo
+        // Empezamos desde distanciaRepeticiones para dejar un espacio con el anillo interior
+        // Añadimos el desplazamiento radial que puede ser positivo o negativo
+        const distancia = (distanciaRepeticiones * rep) + (desplazamientoRadial * rep);
         
-        // Para cada repetición en esta dirección (empezando desde 1 para no solapar con el anillo interior)
-        for (let rep = 1; rep <= numRepeticiones; rep++) {
-            // Calculamos la distancia desde el centro
-            // Empezamos desde distanciaRepeticiones para dejar un espacio con el anillo interior
-            // Añadimos el desplazamiento radial que puede ser positivo o negativo
-            const distancia = (distanciaRepeticiones * rep) + (desplazamientoRadial * rep);
+        // El número de pajaritas aumenta proporcionalmente al radio del anillo
+        // Multiplicamos por 2 para cada anillo, lo que significa:
+        // Anillo 1: 6 pajaritas (base)
+        // Anillo 2: 12 pajaritas
+        // Anillo 3: 18 pajaritas
+        // etc.
+        const numPajaritasAnillo = numPajaritasBase * (rep + 1);
+        const angleStep = (2 * Math.PI) / numPajaritasAnillo;
+        
+        // Para cada pajarita en este anillo
+        for (let i = 0; i < numPajaritasAnillo; i++) {
+            // Calculamos el ángulo base para esta pajarita
+            const angulo = i * angleStep;
+            
+            // Aplicamos el offset angular
+            const anguloAjustado = angulo + (offsetAngular * rep);
             
             // Aplicamos una escala uniforme para todas las pajaritas
             const escala = escalaUniforme;
-            
-            // Calculamos el ángulo con el offset angular
-            const anguloAjustado = angulo + (offsetAngular * rep);
             
             // Calcular posición en coordenadas polares (centro + vector radial)
             const x = distancia * Math.cos(anguloAjustado);
@@ -165,20 +174,15 @@ function crearCelosiaRadial() {
             // Z puede incrementarse con cada repetición para crear un efecto de elevación
             const z = alturaZ * rep;
             
-            // La rotación debe ser coherente con el anillo interior
-            // Si en el anillo interior la pajarita en este ángulo tiene rotación angulo,
-            // entonces las pajaritas radiales deben seguir el mismo patrón
+            // Alternamos la rotación para crear un patrón interesante
+            // Esta rotación hace que las pajaritas miren hacia adentro o hacia afuera alternativamente
+            const rotacion = i % 2 === 0 ? angulo : angulo + Math.PI;
             
-            // Mantenemos la misma rotación que la del anillo interior para esta dirección
-            // si rep es impar, y rotamos 180 grados si rep es par para crear un patrón más interesante
-            const rotacion = rep % 2 === 0 ? angulo + Math.PI : angulo;
-            
-            // El índice es importante para determinar el color de manera coherente
-            // Usamos dir como base para mantener la coherencia con el anillo interior
-            const indice = dir + (rep * numDirecciones);
+            // El índice para determinar el color, alternando colores
+            const indice = i + (rep * numPajaritasAnillo);
             
             // Cargar la pajarita en esta posición
-            loadSVG('./pajarita001.svg', rotacion, numDirecciones, x, y, z, escala, 'celosia', indice);
+            loadSVG('./pajarita001.svg', rotacion, numPajaritasAnillo, x, y, z, escala, 'celosia', indice);
         }
     }
 }

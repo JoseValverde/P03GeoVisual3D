@@ -46,7 +46,7 @@ window.addEventListener('keydown', handleKeyDown);
 function init() {
     // Crear escena
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xbfbdb7);
+    scene.background = new THREE.Color(0x000000);
     
     // Crear cámara
     const aspectRatio = window.innerWidth / window.innerHeight;
