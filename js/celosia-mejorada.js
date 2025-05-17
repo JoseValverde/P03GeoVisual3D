@@ -39,6 +39,14 @@ let scene, camera, renderer;
 let controls;
 let objects = [];
 let originalRotations = []; // Almacenar rotaciones iniciales
+
+// Variables para la niebla
+let currentFog = null;
+let fogType = 'exponential'; // 'none', 'linear', 'exponential'
+let fogColor = 0xbfbdb7; // Mismo color que el fondo
+let fogDensity = 0.016; // Valor por defecto más suave
+let fogNear = 1;
+let fogFar = 20;
 let pivotX = 0.502; // Coordenada X del pivot
 let pivotY = -0.3451; // Coordenada Y del pivot
 let pivotZ = 0;      // Coordenada Z del pivot
@@ -49,10 +57,10 @@ let connectionLines = []; // Array para almacenar las líneas de conexión
 
 // Variables para la celosía
 let numRepeticiones = 4;           // Número de repeticiones en la celosía (ajustable con teclas 1/2)
-let distanciaRepeticiones = 0.965;   // Distancia entre repeticiones (ajustable con teclas 3/4)
+let distanciaRepeticiones = 1.22;  // Distancia entre repeticiones (ajustable con teclas 3/4)
 let escalaUniforme = 1.0;          // Escala uniforme para todas las pajaritas (ajustable con teclas 5/6)
 let alturaZ = 0;                   // Altura en el eje Z (ajustable con teclas 7/8)
-let offsetAngular = 0;             // Desplazamiento angular para las pajaritas (ajustable con teclas 9/0)
+let offsetAngular = -0.085;        // Desplazamiento angular para las pajaritas (ajustable con teclas 9/0)
 let desplazamientoRadial = 0;      // Desplazamiento radial adicional (ajustable con teclas -/+)
 let factorPajaritas = 2.0;         // Factor que determina cuántas pajaritas hay en cada anillo (ajustable con teclas F/G)
 
@@ -92,6 +100,10 @@ function init() {
     
     // Configurar luces
     Utils.setupBasicLights(scene);
+    
+    // Configurar niebla exponencial por defecto
+    currentFog = new THREE.FogExp2(fogColor, fogDensity);
+    scene.fog = currentFog;
     
     // Añadir objetos a la escena
     createObjects();
@@ -383,6 +395,60 @@ function handleKeyDown(event) {
         factorPajaritas += 0.1;
         console.log(`Factor de pajaritas: ${factorPajaritas.toFixed(1)}`);
         regenerarCelosia();
+    }
+
+    // Controles de niebla
+    if (event.key === 'n' || event.key === 'N') {
+        // Cambiar tipo de niebla
+        switch (fogType) {
+            case 'none':
+                fogType = 'linear';
+                currentFog = new THREE.Fog(fogColor, fogNear, fogFar);
+                break;
+            case 'linear':
+                fogType = 'exponential';
+                currentFog = new THREE.FogExp2(fogColor, fogDensity);
+                break;
+            case 'exponential':
+                fogType = 'none';
+                currentFog = null;
+                break;
+        }
+        scene.fog = currentFog;
+        console.log(`Tipo de niebla: ${fogType}`);
+    }
+    
+    // Controlar densidad de niebla
+    if (event.key === 'm' || event.key === 'M') {
+        // Aumentar densidad/distancia de niebla
+        if (fogType === 'exponential') {
+            fogDensity = Math.min(0.2, fogDensity + 0.005);
+            currentFog.density = fogDensity;
+            console.log(`Densidad de niebla exponencial: ${fogDensity.toFixed(3)}`);
+        } else if (fogType === 'linear') {
+            fogFar = Math.max(fogNear + 1, fogFar - 1);
+            currentFog.far = fogFar;
+            console.log(`Distancia de niebla lineal: ${fogFar.toFixed(1)}`);
+        }
+    } else if (event.key === 'l' || event.key === 'L') {
+        // Disminuir densidad/distancia de niebla
+        if (fogType === 'exponential') {
+            fogDensity = Math.max(0.001, fogDensity - 0.005);
+            currentFog.density = fogDensity;
+            console.log(`Densidad de niebla exponencial: ${fogDensity.toFixed(3)}`);
+        } else if (fogType === 'linear') {
+            fogFar += 1;
+            currentFog.far = fogFar;
+            console.log(`Distancia de niebla lineal: ${fogFar.toFixed(1)}`);
+        }
+    }
+
+    // Mostrar/ocultar panel de control
+    if (event.key === 'h' || event.key === 'H') {
+        const infoPanel = document.getElementById('info');
+        if (infoPanel) {
+            infoPanel.style.display = infoPanel.style.display === 'none' ? 'block' : 'none';
+        }
     }
 }
 
