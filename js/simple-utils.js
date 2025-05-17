@@ -31,7 +31,7 @@ const Utils = {
         directionalLight.shadow.bias = -0.0001; // Ajuste para evitar artefactos
         directionalLight.shadow.normalBias = 0.08; // Mayor suavizado de los bordes
         directionalLight.shadow.radius = 20; // Mayor desenfoque/difuminado de las sombras
-        directionalLight.shadow.blurSamples = 4; // Más muestras para el desenfoque
+        directionalLight.shadow.blurSamples = 12; // Más muestras para el desenfoque
         
         scene.add(directionalLight);
         
